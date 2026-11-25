@@ -1,0 +1,7 @@
+<resources>
+    <!-- Chế độ Sáng -->
+    <style name="Theme.DanhBaSo" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFF5F7FB</item>
+        <item name="android:colorBackground">#FFF5F7FB</item>
+    </style>
+</resources>

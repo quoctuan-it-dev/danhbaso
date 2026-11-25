@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo: nền Navy biển + viền phát sáng (cyan -> xanh dương) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="54" android:centerY="42" android:gradientRadius="64">
+                <item android:offset="0" android:color="#FF1F4A82" />
+                <item android:offset="1" android:color="#FF0B2342" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Lớp sáng mờ rộng -->
+    <path android:pathData="M36,21 H72 A15,15 0 0 1 87,36 V72 A15,15 0 0 1 72,87 H36 A15,15 0 0 1 21,72 V36 A15,15 0 0 1 36,21 Z"
+        android:fillColor="#00000000" android:strokeWidth="5" android:strokeAlpha="0.45">
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear" android:startX="21" android:startY="21" android:endX="87" android:endY="87">
+                <item android:offset="0" android:color="#FF6FE8FF" />
+                <item android:offset="0.5" android:color="#FF3FB0FF" />
+                <item android:offset="1" android:color="#FF2F7BFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Viền sáng -->
+    <path android:pathData="M36,21 H72 A15,15 0 0 1 87,36 V72 A15,15 0 0 1 72,87 H36 A15,15 0 0 1 21,72 V36 A15,15 0 0 1 36,21 Z"
+        android:fillColor="#00000000" android:strokeWidth="2.2">
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear" android:startX="21" android:startY="21" android:endX="87" android:endY="87">
+                <item android:offset="0" android:color="#FF8FF0FF" />
+                <item android:offset="0.5" android:color="#FF5CC2FF" />
+                <item android:offset="1" android:color="#FF4A90FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Đường sáng mảnh trong cùng -->
+    <path android:pathData="M36,21 H72 A15,15 0 0 1 87,36 V72 A15,15 0 0 1 72,87 H36 A15,15 0 0 1 21,72 V36 A15,15 0 0 1 36,21 Z"
+        android:fillColor="#00000000" android:strokeColor="#E6CFF6FF" android:strokeWidth="0.6" />
+</vector>

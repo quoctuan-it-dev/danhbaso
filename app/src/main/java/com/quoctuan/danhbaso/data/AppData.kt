@@ -1,0 +1,98 @@
+package com.quoctuan.danhbaso.data
+
+import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.quoctuan.danhbaso.util.PhoneUtil
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/** Dữ liệu dùng chung cho mọi màn hình. Gọi [refresh] để đọc lại từ điện thoại. */
+class AppData(context: Context) {
+    val prefs = Prefs(context)
+    val contactsRepo = ContactsRepo(context)
+    val callRepo = CallLogRepo(context)
+    val simRepo = SimRepo(context)
+    val backup = BackupManager(context, contactsRepo, simRepo)
+
+    var contacts by mutableStateOf<List<ContactItem>>(emptyList())
+        private set
+    var calls by mutableStateOf<List<CallEntry>>(emptyList())
+        private set
+    var accounts by mutableStateOf<List<String>>(emptyList())
+        private set
+    var accountCounts by mutableStateOf<Map<String, Int>>(emptyMap())
+        private set
+    var selectedAccount by mutableStateOf<String?>(null)
+        private set
+    var simInfo by mutableStateOf(SimInfo.NONE)
+        private set
+    var lastBackup by mutableStateOf(0L)
+        private set
+    var loaded by mutableStateOf(false)
+        private set
+    var keypadSize by mutableStateOf(prefs.keypadSize)
+        private set
+
+    fun changeKeypadSize(v: Int) {
+        keypadSize = v.coerceIn(0, 2)
+        prefs.keypadSize = keypadSize
+    }
+
+    private var byKey: Map<String, ContactItem> = emptyMap()
+
+    suspend fun refresh() {
+        val acc = withContext(Dispatchers.IO) { contactsRepo.googleAccounts() }
+        val counts = withContext(Dispatchers.IO) { contactsRepo.countByAccount() }
+        val simRecords = withContext(Dispatchers.IO) { simRepo.records() }
+        val sInfo = withContext(Dispatchers.IO) { simRepo.info() }
+        val all = withContext(Dispatchers.IO) { contactsRepo.loadAll(simRecords) }
+        val log = withContext(Dispatchers.IO) { callRepo.load() }
+
+        val keyMap = HashMap<String, ContactItem>()
+        for (c in all) for (p in c.phones) keyMap.putIfAbsent(PhoneUtil.key(p), c)
+
+        accounts = acc
+        accountCounts = counts
+        selectedAccount = prefs.account?.takeIf { it in acc } ?: acc.firstOrNull()
+        simInfo = sInfo
+        byKey = keyMap
+        contacts = all
+        calls = log
+        lastBackup = prefs.lastBackup
+        updateVisible()
+        loaded = true
+    }
+
+    fun selectAccount(name: String) {
+        selectedAccount = name
+        prefs.account = name
+        updateVisible()
+    }
+
+    fun markBackup(name: String) {
+        val now = System.currentTimeMillis()
+        prefs.lastBackup = now
+        prefs.lastBackupName = name
+        lastBackup = now
+    }
+
+    /** Danh bạ đang xem: người trong Gmail đang chọn + SIM + máy (ẩn người chỉ nằm ở Gmail khác). */
+    var visibleContacts by mutableStateOf<List<ContactItem>>(emptyList())
+        private set
+
+    private fun updateVisible() {
+        val sel = selectedAccount
+        visibleContacts = if (sel == null) contacts
+        else contacts.filter { it.googleAccounts.isEmpty() || sel in it.googleAccounts }
+    }
+
+    fun contactFor(number: String): ContactItem? = byKey[PhoneUtil.key(number)]
+
+    fun contactById(id: Long): ContactItem? = contacts.firstOrNull { it.id == id }
+
+    /** Số ngày từ lần sao lưu gần nhất; null = chưa sao lưu lần nào. */
+    fun daysSinceBackup(): Long? =
+        if (lastBackup == 0L) null else (System.currentTimeMillis() - lastBackup) / 86_400_000L
+}

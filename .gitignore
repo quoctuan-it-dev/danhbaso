@@ -1,0 +1,24 @@
+# Thư mục build / tạm
+.gradle/
+.kotlin/
+build/
+/app/build/
+/app/release/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Cấu hình riêng máy – KHÔNG đưa lên
+local.properties
+.idea/
+*.iml
+.DS_Store
+
+# Khóa ký app – TUYỆT ĐỐI không đưa lên
+*.jks
+*.keystore
+
+# File APK (sẽ đăng ở mục Releases, không để trong code)
+*.apk
+*.aab
+output-metadata.json
