@@ -27,10 +27,12 @@ class Cleanup(private val contacts: ContactsRepo, private val sim: SimRepo) {
     /** Tên chỉ toàn số (do lưu không có tên) thì coi như chưa có tên. */
     private fun hasRealName(c: ContactItem) = c.name.any { it.isLetter() }
 
-    /** Chọn người giữ lại: có tên thật > nằm trong Gmail đang chọn > nhiều số hơn > yêu thích. */
+    /** Chọn người giữ lại: có tên thật > tên có dấu > nằm trong Gmail đang chọn > nhiều số hơn > yêu thích. */
     private fun pickKeep(items: List<ContactItem>, account: String?): ContactItem =
         items.sortedWith(
             compareByDescending<ContactItem> { hasRealName(it) }
+                // Tên có dấu (tên gốc đầy đủ) được chọn sẵn trước tên không dấu (thường là tên chép từ SIM)
+                .thenByDescending { it.name.any { ch -> ch.code > 127 } }
                 .thenByDescending { account != null && account in it.googleAccounts }
                 .thenByDescending { it.phones.size }
                 .thenByDescending { it.starred }

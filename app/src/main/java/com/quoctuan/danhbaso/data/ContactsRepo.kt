@@ -31,6 +31,8 @@ class ContactsRepo(private val context: Context) {
         val phones = LinkedHashMap<String, String>() // key -> số gốc
         val accounts = HashSet<String>()
         var inSimAccount = false
+        /** Có bản ghi nào KHÔNG phải SIM không (Gmail / máy). */
+        var hasNonSim = false
     }
 
     /**
@@ -62,18 +64,51 @@ class ContactsRepo(private val context: Context) {
                     val k = PhoneUtil.key(number)
                     if (k.isNotEmpty() && !b.phones.containsKey(k)) b.phones[k] = number
                     if (type == GOOGLE && accName.isNotEmpty()) b.accounts += accName
-                    if (type.contains("sim", ignoreCase = true)) b.inSimAccount = true
+                    if (isSimType(type)) b.inSimAccount = true else b.hasNonSim = true
                 }
             }
         } catch (e: SecurityException) {
             return emptyList()
         }
 
+        // Tên hiển thị: ưu tiên tên trong Gmail (đầy đủ, có dấu), sau đó tên lưu trong máy, cuối cùng mới tới tên SIM.
+        // Android có thể chọn tên SIM (bị cắt / mất dấu) làm tên chung, nên tự chọn lại ở đây.
+        try {
+            val rank = HashMap<Long, Int>()
+            cr.query(
+                RawContacts.CONTENT_URI,
+                arrayOf(RawContacts.CONTACT_ID, RawContacts.DISPLAY_NAME_PRIMARY, COL_ACCOUNT_TYPE),
+                "${RawContacts.DELETED}=0", null, null
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getLong(0)
+                    val b = map[id] ?: continue
+                    val n = c.getString(1)?.trim().orEmpty()
+                    if (n.isEmpty() || n.all { it.isDigit() || it == '+' || it == ' ' }) continue
+                    val t = c.getString(2) ?: ""
+                    val r = when { t == GOOGLE -> 0; isSimType(t) -> 2; else -> 1 }
+                    if (r < (rank[id] ?: 9)) { rank[id] = r; b.name = n }
+                }
+            }
+        } catch (_: Exception) {
+        }
+
         val simKeys = simRecords.map { PhoneUtil.key(it.number) }.toSet()
         val result = ArrayList<ContactItem>()
         val knownKeys = HashSet<String>()
+        // Bản SIM riêng lẻ của một người đã có trong Gmail/máy (cùng số) → không hiện thành người thứ 2,
+        // chỉ đánh dấu người kia "có trong SIM". Tránh hiện trùng và tránh "Dọn trùng" xóa nhầm bản SIM.
+        val nonSimKeys = HashMap<String, Builder>()
+        for (b in map.values) if (b.hasNonSim) for (k in b.phones.keys) nonSimKeys.putIfAbsent(k, b)
+        for (b in map.values) {
+            if (b.phones.isNotEmpty() && !b.hasNonSim && b.phones.keys.all { it in nonSimKeys }) {
+                b.phones.keys.forEach { nonSimKeys[it]?.inSimAccount = true }
+                knownKeys += b.phones.keys
+            }
+        }
         for (b in map.values) {
             if (b.phones.isEmpty()) continue
+            if (!b.hasNonSim && b.phones.keys.all { it in nonSimKeys }) continue
             knownKeys += b.phones.keys
             result += ContactItem(
                 id = b.id,
@@ -102,6 +137,9 @@ class ContactsRepo(private val context: Context) {
         val collator = Collator.getInstance(Locale("vi", "VN"))
         return result.sortedWith { a, b -> collator.compare(a.name, b.name) }
     }
+
+    /** Loại tài khoản SIM (mỗi hãng đặt tên khác: com.android.sim, vnd.sec.contact.sim, ...). */
+    private fun isSimType(t: String) = t.contains("sim", ignoreCase = true) || t.contains("icc", ignoreCase = true)
 
     /** Các tài khoản Gmail đang đăng nhập trên máy. */
     fun googleAccounts(): List<String> {
