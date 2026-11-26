@@ -26,6 +26,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,84 +48,92 @@ import java.util.Locale
 
 /** Bảng màu theo bản thiết kế. Tự đổi theo chế độ Sáng / Tối của điện thoại. */
 object C {
-    var Bg = Color(0xFF14171F)
+    var Bg by mutableStateOf(Color(0xFF14171F))
         private set
-    var Card = Color(0xFF1F232D)
+    var Card by mutableStateOf(Color(0xFF1F232D))
         private set
-    var Card2 = Color(0xFF262B37)
+    var Card2 by mutableStateOf(Color(0xFF262B37))
         private set
-    var Search = Color(0xFF232835)
+    var Search by mutableStateOf(Color(0xFF232835))
         private set
-    var Nav = Color(0xFF1A1E27)
+    var Nav by mutableStateOf(Color(0xFF1A1E27))
         private set
-    var Text = Color(0xFFE6E8EE)
+    var Text by mutableStateOf(Color(0xFFE6E8EE))
         private set
-    var Sub = Color(0xFF9AA1B0)
+    var Sub by mutableStateOf(Color(0xFF9AA1B0))
         private set
-    var Sub2 = Color(0xFFC4C9D4)
+    var Sub2 by mutableStateOf(Color(0xFFC4C9D4))
         private set
-    var Blue = Color(0xFF8AB4F8)
+    var Blue by mutableStateOf(Color(0xFF8AB4F8))
         private set
-    var OnBlue = Color(0xFF0B1A33)
+    var OnBlue by mutableStateOf(Color(0xFF0B1A33))
         private set
-    var BlueBg = Color(0xFF2C3A55)
+    var BlueBg by mutableStateOf(Color(0xFF2C3A55))
         private set
-    var Green = Color(0xFF81C995)
+    var Green by mutableStateOf(Color(0xFF81C995))
         private set
-    var OnGreen = Color(0xFF0E2A18)
+    var OnGreen by mutableStateOf(Color(0xFF0E2A18))
         private set
-    var GreenBg = Color(0xFF1D3326)
+    var GreenBg by mutableStateOf(Color(0xFF1D3326))
         private set
-    var GreenDark = Color(0xFF1E5631)
+    var GreenDark by mutableStateOf(Color(0xFF1E5631))
         private set
-    var Red = Color(0xFFF28B82)
+    var Red by mutableStateOf(Color(0xFFF28B82))
         private set
-    var Orange = Color(0xFFFCAD70)
+    var Orange by mutableStateOf(Color(0xFFFCAD70))
         private set
-    var OnOrange = Color(0xFF3A2200)
+    var OnOrange by mutableStateOf(Color(0xFF3A2200))
         private set
-    var OrangeBg = Color(0xFF3A2E1A)
+    var OrangeBg by mutableStateOf(Color(0xFF3A2E1A))
         private set
-    var OrangeText = Color(0xFFF3D9B8)
+    var OrangeText by mutableStateOf(Color(0xFFF3D9B8))
         private set
-    var Grey = Color(0xFFAAB0BD)
+    var Grey by mutableStateOf(Color(0xFFAAB0BD))
         private set
-    var Border = Color(0xFF444B5C)
+    var Border by mutableStateOf(Color(0xFF444B5C))
         private set
-    var Line = Color(0xFF2A2F3B)
+    var Line by mutableStateOf(Color(0xFF2A2F3B))
         private set
-    var TickOff = Color(0xFF5A6172)
+    var TickOff by mutableStateOf(Color(0xFF5A6172))
         private set
-    var Chip = Color(0xFF3A4257)
+    var Chip by mutableStateOf(Color(0xFF3A4257))
         private set
-    var KeyBorder = Color(0xFF333B4D)
+    var KeyBorder by mutableStateOf(Color(0xFF333B4D))
         private set
-    var NoAvatar = Color(0xFF3A3F4B)
+    var NoAvatar by mutableStateOf(Color(0xFF3A3F4B))
         private set
     val Zalo = Color(0xFF0068FF)
-    var Yellow = Color(0xFFFDD663)
+    var Yellow by mutableStateOf(Color(0xFFFDD663))
         private set
     var dark = true
+        private set
+    /** Bộ màu đang dùng: 0 Navy biển, 1 Xanh lá rừng, 2 Xanh ngọc, 3 Than chì. */
+    var theme = 0
+        private set
+    /** Màu xanh dương cố định cho trạng thái "Gọi đi" (không đổi theo bộ màu). */
+    var CallBlue by mutableStateOf(Color(0xFF5CC2FF))
         private set
 
     private var initialized = false
 
     /** Nền phía trên (sáng nhẹ) + dải màu điểm nhấn cyan → xanh dương. */
-    var BgTop = Color(0xFF173A68)
+    var BgTop by mutableStateOf(Color(0xFF173A68))
         private set
-    var AccentA = Color(0xFF3FD0FF)
+    var AccentA by mutableStateOf(Color(0xFF3FD0FF))
         private set
-    var AccentB = Color(0xFF2F86FF)
+    var AccentB by mutableStateOf(Color(0xFF2F86FF))
         private set
     val accent: androidx.compose.ui.graphics.Brush
         get() = androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(AccentA, AccentB))
     val background: androidx.compose.ui.graphics.Brush
         get() = androidx.compose.ui.graphics.Brush.verticalGradient(listOf(BgTop, Bg, Bg), endY = 1600f)
 
-    fun apply(isDark: Boolean) {
-        if (initialized && isDark == dark) return
+    fun apply(isDark: Boolean, themeIndex: Int = theme) {
+        if (initialized && isDark == dark && themeIndex == theme) return
         initialized = true
         dark = isDark
+        theme = themeIndex
+        CallBlue = if (isDark) Color(0xFF5CC2FF) else Color(0xFF1A6FD6)
         if (isDark) {
             // Tông "Navy biển"
             BgTop = Color(0xFF173A68); Bg = Color(0xFF0B2342); Card = Color(0xFF12304F); Card2 = Color(0xFF143458)
@@ -145,8 +156,39 @@ object C {
             Border = Color(0xFFC6D3E6); Line = Color(0xFFDCE5F2); TickOff = Color(0xFF9AA8BF)
             Chip = Color(0xFFDCEBFC); KeyBorder = Color(0xFFBFCDE3); NoAvatar = Color(0xFFD2DCEB); Yellow = Color(0xFFD99A00)
         }
+        if (themeIndex != 0) overlay(isDark, themeIndex)
+    }
+
+    /** Ghi đè màu nền / viền / điểm nhấn theo bộ màu đã chọn. Màu trạng thái cuộc gọi giữ nguyên. */
+    private fun overlay(isDark: Boolean, t: Int) {
+        // thứ tự: BgTop, Bg, Card, Card2, Search, Nav, Text, Sub, Sub2, Blue, OnBlue, BlueBg,
+        //         AccentA, AccentB, Border, Line, TickOff, Chip, KeyBorder, NoAvatar
+        val p: LongArray = when (t) {
+            1 -> if (isDark) longArrayOf(0xFF14503D, 0xFF0A2A21, 0xFF0F3A2D, 0xFF113F31, 0xFF144838, 0xFF08221A, 0xFFEAFBF3, 0xFF8FBFAA, 0xFFBFE3D3, 0xFF6EF2B4, 0xFF05301C, 0xFF175A44, 0xFF6EF2B4, 0xFF1FAF78, 0xFF2A6B53, 0xFF1E5A45, 0xFF5A8F7A, 0xFF175A44, 0xFF2A6B53, 0xFF1D5040)
+                 else longArrayOf(0xFFE3F5EC, 0xFFF4FAF7, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFE3F0EA, 0xFFFFFFFF, 0xFF10291F, 0xFF557366, 0xFF2F4A3F, 0xFF15885A, 0xFFFFFFFF, 0xFFD8F0E4, 0xFF2CC98A, 0xFF15885A, 0xFFBFDCCD, 0xFFD9EBE2, 0xFF98B8A9, 0xFFD8F0E4, 0xFFB5D6C6, 0xFFCFE5DA)
+            2 -> if (isDark) longArrayOf(0xFF11505A, 0xFF07272D, 0xFF0D3940, 0xFF0F3F47, 0xFF124650, 0xFF061F24, 0xFFE8FAFB, 0xFF8DBCC2, 0xFFC0E2E6, 0xFF5CF0EA, 0xFF042A2E, 0xFF155B64, 0xFF5CF0EA, 0xFF13A7BC, 0xFF22707A, 0xFF1D5660, 0xFF5A8E95, 0xFF155B64, 0xFF22707A, 0xFF1A4C54)
+                 else longArrayOf(0xFFE0F5F6, 0xFFF3FAFB, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFE0EFF1, 0xFFFFFFFF, 0xFF0E2A2E, 0xFF52737A, 0xFF2D4A50, 0xFF0E8A9C, 0xFFFFFFFF, 0xFFD5F0F3, 0xFF1EC3D0, 0xFF0E8A9C, 0xFFBCDCE0, 0xFFD6EBEE, 0xFF94B8BD, 0xFFD5F0F3, 0xFFB2D6DB, 0xFFCCE4E7)
+            else -> if (isDark) longArrayOf(0xFF2A303B, 0xFF14171D, 0xFF1D222B, 0xFF222833, 0xFF262C36, 0xFF101318, 0xFFECEFF4, 0xFF9AA3B2, 0xFFC7CDD8, 0xFFB9CCEB, 0xFF141A26, 0xFF2E3748, 0xFFC9D6EA, 0xFF6F86AD, 0xFF3C4556, 0xFF323A47, 0xFF5F6878, 0xFF2E3748, 0xFF46516A, 0xFF343B48)
+                 else longArrayOf(0xFFECEFF4, 0xFFF6F7F9, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFE7EAEF, 0xFFFFFFFF, 0xFF1A1F29, 0xFF5E6674, 0xFF39404D, 0xFF4A6491, 0xFFFFFFFF, 0xFFE1E7F1, 0xFF8FA6CC, 0xFF4A6491, 0xFFC9CFDA, 0xFFDFE3EA, 0xFFA0A8B6, 0xFFE1E7F1, 0xFFC3CAD6, 0xFFD5DAE3)
+        }
+        fun c(i: Int) = Color(p[i])
+        BgTop = c(0); Bg = c(1); Card = c(2); Card2 = c(3); Search = c(4); Nav = c(5)
+        Text = c(6); Sub = c(7); Sub2 = c(8); Blue = c(9); OnBlue = c(10); BlueBg = c(11)
+        AccentA = c(12); AccentB = c(13); Border = c(14); Line = c(15); TickOff = c(16)
+        Chip = c(17); KeyBorder = c(18); NoAvatar = c(19)
     }
 }
+
+/** Tên các bộ màu (hiện trong menu ☰ → Màu giao diện). */
+val THEME_NAMES = listOf("Navy biển", "Xanh lá rừng", "Xanh ngọc", "Than chì")
+
+/** Màu mẫu (điểm nhấn, nền) để vẽ vòng tròn xem trước. */
+val THEME_SWATCH = listOf(
+    Color(0xFF3FD0FF) to Color(0xFF0B2342),
+    Color(0xFF6EF2B4) to Color(0xFF0A2A21),
+    Color(0xFF5CF0EA) to Color(0xFF07272D),
+    Color(0xFFC9D6EA) to Color(0xFF14171D),
+)
 
 private val avatarPalette = listOf(
     Color(0xFF1E7FA8), Color(0xFF2F6FB3), Color(0xFF2E7D4F), Color(0xFFB0457A),
@@ -156,9 +198,9 @@ private val avatarPalette = listOf(
 fun avatarColor(name: String): Color = avatarPalette[(name.hashCode() and 0x7fffffff) % avatarPalette.size]
 
 @Composable
-fun AppTheme(content: @Composable () -> Unit) {
+fun AppTheme(theme: Int = 0, content: @Composable () -> Unit) {
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
-    C.apply(dark)
+    C.apply(dark, theme)
     val scheme = if (dark) darkColorScheme(
         primary = C.Blue, onPrimary = C.OnBlue, background = C.Bg, onBackground = C.Text,
         surface = C.Card, onSurface = C.Text, surfaceVariant = C.Card2, onSurfaceVariant = C.Sub2,
@@ -173,13 +215,13 @@ fun AppTheme(content: @Composable () -> Unit) {
 
 /** Trạng thái cuộc gọi và màu tương ứng (đã thống nhất). */
 enum class CallStatus(val label: String) {
-    ANSWERED("Đã bắt máy"),
-    MISSED("Chưa bắt máy"),
-    REJECTED("Đã từ chối"),
+    ANSWERED("Gọi đến · Đã nghe máy"),
+    MISSED("Gọi đến · Chưa nghe máy"),
+    REJECTED("Gọi đến · Đã từ chối"),
     OUTGOING("Gọi đi · Đã nghe máy"),
     NO_ANSWER("Gọi đi · Không nghe máy"),
-    BLOCKED("Đã chặn"),
-    VOICEMAIL("Thư thoại");
+    BLOCKED("Gọi đến · Đã chặn"),
+    VOICEMAIL("Gọi đến · Thư thoại");
 
     /** Màu lấy theo chế độ Sáng/Tối hiện tại. */
     val color: Color
@@ -187,7 +229,7 @@ enum class CallStatus(val label: String) {
             ANSWERED -> C.Green
             MISSED -> C.Red
             REJECTED -> C.Orange
-            OUTGOING -> C.Blue
+            OUTGOING -> C.CallBlue
             else -> C.Grey
         }
 }

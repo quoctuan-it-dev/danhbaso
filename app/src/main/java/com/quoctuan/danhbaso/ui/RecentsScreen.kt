@@ -86,7 +86,7 @@ fun RecentsScreen(
         // Nút lọc
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip("Tất cả", !missedOnly) { missedOnly = false }
-            FilterChip("Chưa bắt máy" + if (missedCount > 0) " $missedCount" else "", missedOnly) { missedOnly = true }
+            FilterChip("Gọi nhỡ" + if (missedCount > 0) " $missedCount" else "", missedOnly) { missedOnly = true }
         }
         // Lời nhắc sao lưu
         val days = data.daysSinceBackup()

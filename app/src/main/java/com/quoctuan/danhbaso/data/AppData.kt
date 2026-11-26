@@ -35,6 +35,14 @@ class AppData(context: Context) {
     var keypadSize by mutableStateOf(prefs.keypadSize)
         private set
 
+    var theme by mutableStateOf(prefs.theme.coerceIn(0, 3))
+        private set
+
+    fun changeTheme(v: Int) {
+        theme = v.coerceIn(0, 3)
+        prefs.theme = theme
+    }
+
     fun changeKeypadSize(v: Int) {
         keypadSize = v.coerceIn(0, 2)
         prefs.keypadSize = keypadSize

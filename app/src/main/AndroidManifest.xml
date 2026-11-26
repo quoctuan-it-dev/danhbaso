@@ -5,7 +5,7 @@
     <!-- Danh bạ: đọc và lưu số -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
-    <!-- Nhật ký cuộc gọi: hiện lịch sử Gọi tới / Gọi đi / Chưa bắt máy -->
+    <!-- Nhật ký cuộc gọi: hiện lịch sử Gọi đến / Gọi đi / Gọi nhỡ -->
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <!-- Gọi điện trực tiếp khi bấm nút Gọi -->
     <uses-permission android:name="android.permission.CALL_PHONE" />

@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.outlined.Person
@@ -91,7 +92,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val data = AppData(applicationContext)
         setContent {
-            AppTheme {
+            AppTheme(data.theme) {
                 Box(Modifier.fillMaxSize().background(C.background).safeDrawingPadding()) {
                     Root(data)
                 }
@@ -184,6 +185,7 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
     var tab by remember { mutableStateOf(Tab.RECENTS) }
     var focusSearch by remember { mutableStateOf(false) }
     var showKeypadSize by remember { mutableStateOf(false) }
+    var showTheme by remember { mutableStateOf(false) }
     val drawer = rememberDrawerState(DrawerValue.Closed)
 
     fun push(r: Route) = stack.add(r)
@@ -207,6 +209,9 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
                 AppDrawer(data, onKeypadSize = {
                     scope.launch { drawer.close() }
                     showKeypadSize = true
+                }, onTheme = {
+                    scope.launch { drawer.close() }
+                    showTheme = true
                 }) { dest ->
                     scope.launch { drawer.close() }
                     push(dest)
@@ -282,10 +287,11 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
         Route.Update -> UpdateScreen(onBack = { pop() })
     }
     if (showKeypadSize) com.quoctuan.danhbaso.ui.KeypadSizeDialog(data) { showKeypadSize = false }
+    if (showTheme) com.quoctuan.danhbaso.ui.ThemeDialog(data) { showTheme = false }
 }
 
 @Composable
-private fun AppDrawer(data: AppData, onKeypadSize: () -> Unit, onPick: (Route) -> Unit) {
+private fun AppDrawer(data: AppData, onKeypadSize: () -> Unit, onTheme: () -> Unit, onPick: (Route) -> Unit) {
     ModalDrawerSheet(drawerContainerColor = C.Nav, drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)) {
         Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 24.dp)) {
             Text("Danh bạ số", color = C.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp))
@@ -308,6 +314,11 @@ private fun AppDrawer(data: AppData, onKeypadSize: () -> Unit, onPick: (Route) -
                 label = { Text("Cỡ bàn phím: " + listOf("Nhỏ", "Vừa", "Lớn")[data.keypadSize]) },
                 icon = { Icon(Icons.Filled.Dialpad, null) },
                 selected = false, onClick = onKeypadSize, colors = colors
+            )
+            NavigationDrawerItem(
+                label = { Text("Màu giao diện: " + com.quoctuan.danhbaso.ui.THEME_NAMES[data.theme]) },
+                icon = { Icon(Icons.Filled.Palette, null) },
+                selected = false, onClick = onTheme, colors = colors
             )
             NavigationDrawerItem(
                 label = { Text("Thông tin ứng dụng") }, icon = { Icon(Icons.Filled.Info, null) },

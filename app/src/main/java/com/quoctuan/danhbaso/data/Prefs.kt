@@ -21,6 +21,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("keypad_size", 1)
         set(v) = sp.edit().putInt("keypad_size", v).apply()
 
+    /** Bộ màu giao diện: 0 Navy biển, 1 Xanh lá rừng, 2 Xanh ngọc, 3 Than chì. */
+    var theme: Int
+        get() = sp.getInt("theme", 0)
+        set(v) = sp.edit().putInt("theme", v).apply()
+
     var lastBackupName: String?
         get() = sp.getString("last_backup_name", null)
         set(v) = sp.edit().putString("last_backup_name", v).apply()
