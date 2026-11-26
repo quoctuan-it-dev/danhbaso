@@ -1,6 +1,23 @@
 package com.quoctuan.danhbaso.ui
 
+import android.content.ClipDescription
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.InterceptPlatformTextInput
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import kotlinx.coroutines.awaitCancellation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -53,13 +70,67 @@ private val keys = listOf(
     "*" to "", "0" to "+", "#" to "",
 )
 
+/**
+ * Làm sạch chuỗi dán vào: chỉ giữ chữ số và + * #.
+ * "+84 912.345.678" → "0912345678".
+ */
+private fun cleanNumber(raw: String): String {
+    var t = raw.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
+    if (t.startsWith("+84")) t = "0" + t.removePrefix("+84")
+    return t
+}
+
+/** Có chữ trong bộ nhớ tạm không? Chỉ xem "loại" dữ liệu, KHÔNG đọc nội dung (nên không hiện thông báo dán). */
+private fun clipHasText(ctx: Context): Boolean {
+    val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return false
+    val d = cm.primaryClipDescription ?: return false
+    return d.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) || d.hasMimeType(ClipDescription.MIMETYPE_TEXT_HTML)
+}
+
+/** Đọc số từ bộ nhớ tạm (chỉ gọi khi người dùng bấm "Dán"). */
+private fun readClipNumber(ctx: Context): String {
+    val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return ""
+    val item = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0) ?: return ""
+    return cleanNumber(item.coerceToText(ctx)?.toString().orEmpty())
+}
+
 /** Bàn phím số: gõ vài số là hiện gợi ý tên. */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun DialpadScreen(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (String) -> Unit) {
     val ctx = LocalContext.current
     val view = androidx.compose.ui.platform.LocalView.current
-    var digits by rememberSaveable { mutableStateOf("") }
+    // Ô số có con trỏ (thanh dọc nhấp nháy): bấm phím sẽ chèn tại vị trí con trỏ
+    var field by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    val digits = field.text
+    fun insert(t: String) {
+        val sel = field.selection
+        val newText = field.text.replaceRange(sel.min, sel.max, t)
+        field = TextFieldValue(newText, TextRange(sel.min + t.length))
+    }
+    fun backspace() {
+        val sel = field.selection
+        field = when {
+            !sel.collapsed -> TextFieldValue(field.text.removeRange(sel.min, sel.max), TextRange(sel.min))
+            sel.min > 0 -> TextFieldValue(field.text.removeRange(sel.min - 1, sel.min), TextRange(sel.min - 1))
+            else -> field
+        }
+    }
+    val focus = androidx.compose.runtime.remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+
+    // Nút "Dán số" hiện khi ô số trống và bộ nhớ tạm đang có chữ
+    var hasClip by androidx.compose.runtime.remember { mutableStateOf(false) }
+    LifecycleResumeEffect(Unit) {
+        hasClip = clipHasText(ctx)
+        onPauseOrDispose { }
+    }
+    DisposableEffect(Unit) {
+        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        val l = ClipboardManager.OnPrimaryClipChangedListener { hasClip = clipHasText(ctx) }
+        cm?.addPrimaryClipChangedListener(l)
+        onDispose { cm?.removePrimaryClipChangedListener(l) }
+    }
     // Cỡ chữ / phím theo lựa chọn Nhỏ – Vừa – Lớn (menu ☰ → Cỡ bàn phím)
     val sz = data.keypadSize
     val keyH = listOf(54, 62, 72)[sz].dp
@@ -108,13 +179,43 @@ fun DialpadScreen(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (
                 }
             }
         }
-        // Dãy số đang gõ: luôn nằm ngay trên bàn phím
-        Text(
-            digits, color = C.Text,
-            fontSize = if (digits.length > 13) 26.sp else numberSp, fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Clip,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-        )
+        // Nút dán nhanh từ bộ nhớ tạm (cho người lớn tuổi, khỏi phải giữ tay)
+        if (digits.isEmpty() && hasClip) {
+            Row(
+                Modifier.align(Alignment.CenterHorizontally).padding(bottom = 4.dp)
+                    .clip(RoundedCornerShape(50)).background(C.BlueBg)
+                    .glowBorder(RoundedCornerShape(50), 1.dp)
+                    .clickable {
+                        val n = readClipNumber(ctx)
+                        if (n.isEmpty()) Actions.toast(ctx, "Bộ nhớ tạm không có số điện thoại")
+                        else field = TextFieldValue(n, TextRange(n.length))
+                    }
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.ContentPaste, null, tint = C.Blue, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Dán số đã sao chép", color = C.Blue, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        // Dãy số đang gõ: có con trỏ, giữ tay để Dán / Sao chép; KHÔNG bật bàn phím chữ của máy
+        InterceptPlatformTextInput(interceptor = { _, _ -> awaitCancellation() }) {
+            BasicTextField(
+                value = field,
+                onValueChange = { v ->
+                    val clean = cleanNumber(v.text)
+                    field = if (clean == v.text) v else TextFieldValue(clean, TextRange(clean.length))
+                },
+                singleLine = true,
+                textStyle = TextStyle(
+                    color = C.Text, fontSize = if (digits.length > 13) 26.sp else numberSp,
+                    fontWeight = FontWeight.Medium, textAlign = TextAlign.Center
+                ),
+                cursorBrush = SolidColor(C.AccentA),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                    .focusRequester(focus)
+            )
+        }
         Column(
             Modifier.fillMaxWidth()
                 .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp),
@@ -124,8 +225,8 @@ fun DialpadScreen(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     for ((n, l) in row) {
                         DialKey(n, l, keyH, digitSp, letterSp, view,
-                            onClick = { digits += n },
-                            onLongClick = { digits += if (n == "0") "+" else n })
+                            onClick = { insert(n) },
+                            onLongClick = { insert(if (n == "0") "+" else n) })
                     }
                 }
             }
@@ -151,7 +252,7 @@ fun DialpadScreen(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (
                 ) { Icon(Icons.Filled.Call, "Gọi", tint = C.OnGreen, modifier = Modifier.size(30.dp)) }
                 Box(
                     Modifier.weight(1f).height(keyH).clip(RoundedCornerShape(keyH / 2))
-                        .combinedClickable(onClick = { digits = digits.dropLast(1) }, onLongClick = { digits = "" }),
+                        .combinedClickable(onClick = { backspace() }, onLongClick = { field = TextFieldValue("") }),
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.Filled.Backspace, "Xóa số", tint = C.Sub2, modifier = Modifier.size(28.dp)) }
             }
