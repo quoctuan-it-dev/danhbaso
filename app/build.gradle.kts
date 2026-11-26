@@ -17,8 +17,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // Mỗi lần phát hành bản mới: tăng versionCode lên 1 và đổi versionName (1.0 -> 1.1 ...)
-        versionCode = 24
-        versionName = "1.3.7"
+        versionCode = 25
+        versionName = "1.3.8"
         // Ngày phát hành = ngày build file APK (tự động, không cần sửa tay)
         buildConfigField(
             "String", "RELEASE_DATE",

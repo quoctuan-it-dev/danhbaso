@@ -39,6 +39,7 @@ object SecurityCheck {
      * Mã này không phải bí mật: biết mã cũng không làm giả được con dấu.
      */
     private val TRUSTED_SIGNATURES = setOf<String>(
+        "82:46:13:F8:9B:04:38:AF:57:0A:1A:F5:78:09:0E:C6:CA:88:5B:FB:F4:56:06:B1:86:95:B3:AA:B9:10:8A:6A",
     )
 
     /** App trợ năng quen thuộc, an toàn (không cảnh báo). */
