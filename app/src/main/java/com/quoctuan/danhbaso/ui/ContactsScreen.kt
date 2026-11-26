@@ -136,6 +136,7 @@ fun ContactsScreen(
             // Thanh nhóm: chỉ có khi máy có tài khoản Gmail
             if (data.selectedAccount != null) {
                 item { GroupBar(data, groupSel, onSelect = { groupSel = it }, onCreate = { showCreateGroup = true }) }
+                groupSel?.let { gid -> item { GroupManageRow(data, gid, onDeleted = { groupSel = null }) } }
             }
             if (query.isBlank() && groupSel == null) {
                 item {

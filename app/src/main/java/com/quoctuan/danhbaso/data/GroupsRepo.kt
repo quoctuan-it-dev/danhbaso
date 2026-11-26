@@ -24,12 +24,14 @@ class GroupsRepo(private val context: Context) {
         val list = ArrayList<GroupInfo>()
         cr.query(
             Groups.CONTENT_URI, arrayOf(Groups._ID, Groups.TITLE),
-            "${Groups.ACCOUNT_TYPE}=? AND ${Groups.ACCOUNT_NAME}=? AND ${Groups.DELETED}=0 AND ${Groups.SYSTEM_ID} IS NULL",
+            "${Groups.ACCOUNT_TYPE}=? AND ${Groups.ACCOUNT_NAME}=? AND ${Groups.DELETED}=0 AND ${Groups.SYSTEM_ID} IS NULL" +
+                " AND (${Groups.GROUP_IS_READ_ONLY} IS NULL OR ${Groups.GROUP_IS_READ_ONLY}=0)",
             arrayOf(ContactsRepo.GOOGLE, account), null
         )?.use { c ->
             while (c.moveToNext()) {
                 val title = c.getString(1)?.trim().orEmpty()
-                if (title.isNotEmpty()) list += GroupInfo(c.getLong(0), title)
+                // Bỏ nhóm Google tự tạo cho Yêu thích ("Starred in Android")
+                if (title.isNotEmpty() && !title.equals("Starred in Android", ignoreCase = true)) list += GroupInfo(c.getLong(0), title)
             }
         }
         val collator = java.text.Collator.getInstance(java.util.Locale("vi"))
@@ -68,6 +70,21 @@ class GroupsRepo(private val context: Context) {
         cr.insert(Groups.CONTENT_URI, v)?.lastPathSegment?.toLongOrNull()
     } catch (e: Exception) {
         null
+    }
+
+    /** Đổi tên nhóm. */
+    fun rename(groupId: Long, title: String): Boolean = try {
+        val v = ContentValues().apply { put(Groups.TITLE, title) }
+        cr.update(android.content.ContentUris.withAppendedId(Groups.CONTENT_URI, groupId), v, null, null) > 0
+    } catch (e: Exception) {
+        false
+    }
+
+    /** Xóa nhóm. Người trong nhóm KHÔNG bị xóa, chỉ mất nhãn nhóm. */
+    fun delete(groupId: Long): Boolean = try {
+        cr.delete(android.content.ContentUris.withAppendedId(Groups.CONTENT_URI, groupId), null, null) > 0
+    } catch (e: Exception) {
+        false
     }
 
     /** Các bản ghi (raw contact) của liên hệ nằm trong Gmail [account]. */

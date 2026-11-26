@@ -22,6 +22,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -218,4 +220,109 @@ fun PickGroupsDialog(data: AppData, contact: ContactItem, onDismiss: () -> Unit)
             toggle(newId, inGroup = false)
         }
     }
+}
+
+/** Hàng dưới thanh nhóm khi đang chọn một nhóm: Đổi tên · Xóa nhóm. */
+@Composable
+fun GroupManageRow(data: AppData, groupId: Long, onDeleted: () -> Unit) {
+    val g = data.groups.firstOrNull { it.id == groupId } ?: return
+    var renaming by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("Nhóm: ${g.title}", color = C.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1)
+        SmallAction("Đổi tên", Icons.Filled.Edit, C.Blue) { renaming = true }
+        SmallAction("Xóa nhóm", Icons.Filled.Delete, C.Red) { deleting = true }
+    }
+    if (renaming) RenameGroupDialog(data, g) { renaming = false }
+    if (deleting) DeleteGroupDialog(data, g, onDismiss = { deleting = false }, onDeleted = onDeleted)
+}
+
+@Composable
+private fun SmallAction(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        Modifier.clip(shape).border(1.dp, C.Border, shape).clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = color, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(text, color = color, fontSize = 13.sp)
+    }
+}
+
+/** Hộp đổi tên nhóm. */
+@Composable
+fun RenameGroupDialog(data: AppData, group: com.quoctuan.danhbaso.data.GroupInfo, onDismiss: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var title by remember { mutableStateOf(group.title) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = C.Nav,
+        title = { Text("Đổi tên nhóm", color = C.Text) },
+        text = {
+            OutlinedTextField(
+                value = title, onValueChange = { title = it.take(40) }, singleLine = true,
+                label = { Text("Tên nhóm") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = C.Text, unfocusedTextColor = C.Text,
+                    focusedBorderColor = C.Blue, unfocusedBorderColor = C.Border,
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(
+                enabled = title.isNotBlank() && title.trim() != group.title,
+                onClick = {
+                    val t = title.trim()
+                    if (data.groups.any { it.id != group.id && it.title.equals(t, ignoreCase = true) }) {
+                        Actions.toast(ctx, "Đã có nhóm \"$t\"")
+                    } else scope.launch {
+                        val ok = withContext(Dispatchers.IO) { data.groupsRepo.rename(group.id, t) }
+                        Actions.toast(ctx, if (ok) "Đã đổi tên thành \"$t\"" else "Không đổi được tên")
+                        data.reloadGroups()
+                        onDismiss()
+                    }
+                }
+            ) { Text("Lưu", color = C.Blue, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy", color = C.Sub2) } }
+    )
+}
+
+/** Hộp hỏi lại trước khi xóa nhóm. */
+@Composable
+fun DeleteGroupDialog(data: AppData, group: com.quoctuan.danhbaso.data.GroupInfo, onDismiss: () -> Unit, onDeleted: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val n = data.groupMembers[group.id]?.size ?: 0
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = C.Nav,
+        title = { Text("Xóa nhóm \"${group.title}\"?", color = C.Text) },
+        text = {
+            Text(
+                "Nhóm có $n người. Họ vẫn còn trong danh bạ, chỉ bỏ nhãn nhóm này.",
+                color = C.Sub2, fontSize = 15.sp
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                scope.launch {
+                    val ok = withContext(Dispatchers.IO) { data.groupsRepo.delete(group.id) }
+                    Actions.toast(ctx, if (ok) "Đã xóa nhóm \"${group.title}\"" else "Không xóa được nhóm")
+                    data.reloadGroups()
+                    onDismiss()
+                    if (ok) onDeleted()
+                }
+            }) { Text("Xóa", color = C.Red, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy", color = C.Sub2) } }
+    )
 }

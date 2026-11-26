@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
@@ -88,9 +89,27 @@ fun ContactDetailScreen(
         if (contact.inSim) add("SIM")
     }.joinToString(" + ").ifEmpty { "Bộ nhớ máy" }
 
+    val acc = data.selectedAccount
     HistoryList(
         history = history,
         onBack = onBack,
+        actions = {
+            if (!contact.simOnly && acc != null) {
+                Row(
+                    Modifier.clip(RoundedCornerShape(18.dp)).border(1.5.dp, C.Blue, RoundedCornerShape(18.dp))
+                        .clickable {
+                            if (acc in contact.googleAccounts) showGroups = true
+                            else Actions.toast(ctx, "Người này chưa lưu trong Gmail. Bấm Sửa → chọn \"Lưu vào Gmail\" trước.")
+                        }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Groups, null, tint = C.Blue, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Nhóm", color = C.Blue, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
         header = {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Avatar(contact.name, 96.dp)
@@ -109,25 +128,17 @@ fun ContactDetailScreen(
                 Box(Modifier.padding(top = 4.dp).clip(RoundedCornerShape(10.dp)).background(C.GreenBg).padding(horizontal = 10.dp, vertical = 3.dp)) {
                     Text("Đã lưu: $savedIn", color = C.Green, fontSize = 12.sp)
                 }
-                // Nhóm của người này + nút "＋ Nhóm" (SIM không hỗ trợ nhóm)
-                val acc = data.selectedAccount
-                if (!contact.simOnly && acc != null) {
+                // Nhóm của người này (bấm để sửa); nút "＋ Nhóm" nằm ở góc trên bên phải
+                val tags = if (contact.simOnly) emptyList() else data.groupsOf(contact.id)
+                if (tags.isNotEmpty()) {
                     Gap(8)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        for (g in data.groupsOf(contact.id)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (g in tags) {
                             Box(
                                 Modifier.clip(RoundedCornerShape(12.dp)).background(C.BlueBg)
                                     .clickable { showGroups = true }.padding(horizontal = 10.dp, vertical = 5.dp)
                             ) { Text(g.title, color = C.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
                         }
-                        Box(
-                            Modifier.clip(RoundedCornerShape(12.dp)).border(1.dp, C.Blue, RoundedCornerShape(12.dp))
-                                .clickable {
-                                    if (acc in contact.googleAccounts) showGroups = true
-                                    else Actions.toast(ctx, "Người này chưa lưu trong Gmail. Bấm Sửa → chọn \"Lưu vào Gmail\" trước.")
-                                }
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
-                        ) { Text("＋ Nhóm", color = C.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
                     }
                 }
             }
@@ -278,9 +289,13 @@ private fun SmallOutlined(text: String, icon: ImageVector, color: Color, modifie
 
 /** Phần đầu (thông tin) + danh sách lịch sử cuộc gọi của riêng số đó. */
 @Composable
-private fun HistoryList(history: List<CallEntry>, onBack: () -> Unit, header: @Composable () -> Unit) {
+private fun HistoryList(
+    history: List<CallEntry>, onBack: () -> Unit,
+    actions: @Composable () -> Unit = {},
+    header: @Composable () -> Unit,
+) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { TopBar("", onBack) }
+        item { TopBar("", onBack, actions) }
         item { header() }
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
