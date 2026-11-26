@@ -31,6 +31,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.GppBad
+import androidx.compose.material.icons.filled.GppGood
+import androidx.compose.material.icons.filled.GppMaybe
+import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.material.icons.outlined.GppBad as GppBadOutlined
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.LockOpen
+import androidx.compose.material.icons.outlined.MobileFriendly
+import androidx.compose.material.icons.outlined.PhonelinkErase
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material.icons.outlined.WorkspacePremium
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,6 +60,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -180,34 +195,14 @@ private fun SafeScreen(r: SecReport) {
 
 @Composable
 private fun WarningScreen(items: List<SecItem>, onContinue: (Set<String>) -> Unit) {
-    val ctx = LocalContext.current
     var dontAsk by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
         Spacer(Modifier.height(24.dp))
-        Text("⚠️ Có ${items.size} điểm cần lưu ý", color = C.Orange, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+        Text("Có ${items.size} điểm cần lưu ý", color = C.Orange, fontSize = 23.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
         Text("Bạn vẫn dùng app được, nhưng nên khắc phục để danh bạ an toàn hơn.", color = C.Sub2, fontSize = 15.sp)
         Spacer(Modifier.height(14.dp))
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.Orange.copy(alpha = 0.12f))
-                .border(1.dp, C.Orange, RoundedCornerShape(18.dp)).padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            for (i in items) {
-                Column {
-                    Text(i.title, color = C.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    if (i.detail.isNotEmpty()) Text(i.detail, color = C.Sub2, fontSize = 13.sp)
-                    i.settingsAction?.let { act ->
-                        Text(
-                            "Mở Cài đặt để khắc phục ›", color = C.Orange, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 4.dp).clickable {
-                                runCatching { ctx.startActivity(Intent(act)) }
-                            }
-                        )
-                    }
-                }
-            }
-        }
+        SecList(items)
         Spacer(Modifier.height(16.dp))
         PrimaryButton("Vẫn vào app", modifier = Modifier.fillMaxWidth()) {
             onContinue(if (dontAsk) items.map { it.id }.toSet() else emptySet())
@@ -287,33 +282,8 @@ fun SecurityScreen(data: AppData, onBack: () -> Unit) {
             if (r == null) {
                 Text("Đang kiểm tra…", color = C.Sub2)
             } else {
-                val (title, color) = when {
-                    r.danger.isNotEmpty() -> "App không an toàn" to C.Red
-                    r.warnings.isNotEmpty() -> "Có ${r.warnings.size} điểm cần lưu ý" to C.Orange
-                    else -> "Thiết bị an toàn" to SAFE_GREEN
-                }
-                Text(title, color = color, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                CardBox {
-                    for (i in r.items) {
-                        Row(Modifier.padding(vertical = 6.dp)) {
-                            Text(
-                                when (i.level) { SecLevel.OK -> "✅"; SecLevel.WARN -> "⚠️"; SecLevel.DANGER -> "⛔" },
-                                fontSize = 16.sp
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(i.title, color = C.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                                if (i.detail.isNotEmpty()) Text(i.detail, color = C.Sub2, fontSize = 13.sp)
-                                i.settingsAction?.let { act ->
-                                    Text(
-                                        "Mở Cài đặt ›", color = C.Blue, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(top = 2.dp).clickable { runCatching { ctx.startActivity(Intent(act)) } }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                SecHero(r)
+                SecList(r.items)
                 PrimaryButton("Kiểm tra lại", modifier = Modifier.fillMaxWidth()) { recheck() }
                 if (data.prefs.ignoredSecurity.isNotEmpty()) {
                     SecondaryButton("Hỏi lại các cảnh báo đã ẩn", Modifier.fillMaxWidth()) {
@@ -345,6 +315,148 @@ fun SecurityScreen(data: AppData, onBack: () -> Unit) {
                     color = C.Sub, fontSize = 12.sp
                 )
             }
+        }
+    }
+}
+
+
+// ───────── Thẻ tổng quan + danh sách mục kiểm tra (kiểu biểu tượng) ─────────
+
+private fun levelColor(l: SecLevel): Color = when (l) {
+    SecLevel.OK -> C.Green
+    SecLevel.WARN -> C.Orange
+    SecLevel.DANGER -> C.Red
+}
+
+/** Biểu tượng riêng cho từng mục, theo id. */
+private fun secIcon(i: SecItem): ImageVector {
+    val ok = i.level == SecLevel.OK
+    return when {
+        i.id == "sig" -> if (ok) Icons.Outlined.WorkspacePremium else Icons.Outlined.GppBadOutlined
+        i.id == "root" -> if (ok) Icons.Outlined.MobileFriendly else Icons.Outlined.PhonelinkErase
+        i.id == "lock" -> if (ok) Icons.Outlined.Lock else Icons.Outlined.LockOpen
+        i.id.startsWith("a11y") -> if (ok) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility
+        i.id == "debugger" -> Icons.Outlined.BugReport
+        i.id.startsWith("patch") -> Icons.Outlined.SystemUpdate
+        else -> Icons.Outlined.Shield
+    }
+}
+
+/** Dòng phụ cho mục đạt (SecurityCheck để trống). */
+private fun okSubtitle(i: SecItem): String = when {
+    i.id == "sig" -> "Không bị sửa đổi"
+    i.id == "root" -> "Hệ thống nguyên bản"
+    i.id == "lock" -> "Mật khẩu / vân tay"
+    i.id.startsWith("a11y") -> "Không phát hiện app theo dõi"
+    else -> ""
+}
+
+@Composable
+private fun SecHero(r: SecReport) {
+    val total = r.items.size.coerceAtLeast(1)
+    val okCount = r.items.count { it.level == SecLevel.OK }
+    val (title, sub, colors, accent, icon) = when {
+        r.danger.isNotEmpty() -> HeroStyle(
+            "App không an toàn", "$okCount/$total mục đạt · cần xử lý ngay",
+            listOf(Color(0xFF6B1218), Color(0xFFC0303A), Color(0xFFF06A5E)), Color(0xFFFFC2B8), Icons.Filled.GppBad
+        )
+        r.warnings.isNotEmpty() -> HeroStyle(
+            "Cần lưu ý", "$okCount/$total mục đạt · ${r.warnings.size} điểm cần xem",
+            listOf(Color(0xFF6A3A05), Color(0xFFC76A0A), Color(0xFFF2A33A)), Color(0xFFFFE08A), Icons.Filled.GppMaybe
+        )
+        else -> HeroStyle(
+            "Thiết bị an toàn", "$okCount/$total mục đạt · vừa kiểm tra",
+            listOf(Color(0xFF0E3A6E), Color(0xFF1565C0), Color(0xFF1FB5E8)), Color(0xFF7CF5C0), Icons.Filled.GppGood
+        )
+    }
+    Box(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(colors))
+    ) {
+        // vòng trang trí góc phải
+        Box(
+            Modifier.align(Alignment.TopEnd).offset(40.dp, (-40).dp).size(150.dp)
+                .border(2.dp, Color.White.copy(alpha = 0.13f), CircleShape)
+        )
+        Box(
+            Modifier.align(Alignment.TopEnd).offset(62.dp, (-62).dp).size(194.dp)
+                .border(18.dp, Color.White.copy(alpha = 0.05f), CircleShape)
+        )
+        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(78.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                    drawArc(
+                        color = accent, startAngle = -90f, sweepAngle = 360f * okCount / total,
+                        useCenter = false,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                }
+                Box(
+                    Modifier.size(66.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(38.dp)) }
+            }
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                Text(sub, color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
+                Spacer(Modifier.height(9.dp))
+                Box(Modifier.fillMaxWidth(0.9f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Color.White.copy(alpha = 0.2f))) {
+                    Box(Modifier.fillMaxWidth(okCount.toFloat() / total).height(6.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                }
+            }
+        }
+    }
+}
+
+private data class HeroStyle(val title: String, val sub: String, val colors: List<Color>, val accent: Color, val icon: ImageVector)
+
+@Composable
+private fun SecList(items: List<SecItem>) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(C.Card).padding(horizontal = 14.dp, vertical = 4.dp)
+    ) {
+        items.forEachIndexed { idx, i ->
+            SecRow(i)
+            if (idx < items.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(C.Sub.copy(alpha = 0.12f)))
+        }
+    }
+}
+
+@Composable
+private fun SecRow(i: SecItem) {
+    val ctx = LocalContext.current
+    val col = levelColor(i.level)
+    val act = i.settingsAction
+    Row(
+        Modifier.fillMaxWidth()
+            .then(if (act != null) Modifier.clickable { runCatching { ctx.startActivity(Intent(act)) } } else Modifier)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(44.dp).clip(RoundedCornerShape(14.dp))
+                .background(Brush.linearGradient(listOf(col.copy(alpha = 0.12f), col.copy(alpha = 0.24f)))),
+            contentAlignment = Alignment.Center
+        ) { Icon(secIcon(i), null, tint = col, modifier = Modifier.size(24.dp)) }
+        Spacer(Modifier.width(13.dp))
+        Column(Modifier.weight(1f)) {
+            val title = if (i.id == "sig" && i.level == SecLevel.OK) "App chính chủ" else i.title
+            Text(title, color = C.Text, fontSize = 15.5.sp, fontWeight = FontWeight.SemiBold)
+            val sub = i.detail.ifEmpty { if (i.level == SecLevel.OK) okSubtitle(i) else "" }
+            if (sub.isNotEmpty()) Text(sub, color = C.Sub2, fontSize = 12.5.sp)
+            if (act != null) Text("Bấm để mở Cài đặt ›", color = col, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+        }
+        Spacer(Modifier.width(8.dp))
+        Row(
+            Modifier.clip(RoundedCornerShape(12.dp)).background(col.copy(alpha = 0.13f)).padding(horizontal = 9.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(7.dp).glow(CircleShape, 6.dp, col).clip(CircleShape).background(col))
+            Spacer(Modifier.width(4.dp))
+            Text(
+                when (i.level) { SecLevel.OK -> "Đạt"; SecLevel.WARN -> "Lưu ý"; SecLevel.DANGER -> "Nguy hiểm" },
+                color = col, fontSize = 12.sp, fontWeight = FontWeight.Bold
+            )
         }
     }
 }

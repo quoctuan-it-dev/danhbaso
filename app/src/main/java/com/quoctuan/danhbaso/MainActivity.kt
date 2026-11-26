@@ -231,7 +231,7 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
                     scope.launch { drawer.close() }
                     showFont = true
                 }) { dest ->
-                    scope.launch { drawer.close() }
+                    // Giữ menu mở: bấm ← ở màn con sẽ quay về đúng menu này
                     push(dest)
                 }
             }
