@@ -17,8 +17,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // Mỗi lần phát hành bản mới: tăng versionCode lên 1 và đổi versionName (1.0 -> 1.1 ...)
-        versionCode = 14
-        versionName = "1.1.6"
+        versionCode = 15
+        versionName = "1.2.0"
         // Ngày phát hành = ngày build file APK (tự động, không cần sửa tay)
         buildConfigField(
             "String", "RELEASE_DATE",
@@ -62,6 +62,8 @@ kotlin {
 }
 
 dependencies {
+    // Kiểm thử tự động (chạy trên máy tính, không cài lên điện thoại)
+    testImplementation("junit:junit:4.13.2")
     val composeBom = platform("androidx.compose:compose-bom:2025.06.00")
     implementation(composeBom)
     implementation("androidx.core:core-ktx:1.16.0")

@@ -26,6 +26,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("theme", 0)
         set(v) = sp.edit().putInt("theme", v).apply()
 
+    /** Cỡ chữ toàn app: 0 Nhỏ, 1 Vừa, 2 Lớn, 3 Rất lớn. */
+    var fontSize: Int
+        get() = sp.getInt("font_size", 1)
+        set(v) = sp.edit().putInt("font_size", v).apply()
+
     var lastBackupName: String?
         get() = sp.getString("last_backup_name", null)
         set(v) = sp.edit().putString("last_backup_name", v).apply()

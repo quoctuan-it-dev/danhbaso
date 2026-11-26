@@ -15,6 +15,7 @@ class AppData(context: Context) {
     val callRepo = CallLogRepo(context)
     val simRepo = SimRepo(context)
     val backup = BackupManager(context, contactsRepo, simRepo)
+    val groupsRepo = GroupsRepo(context)
 
     var contacts by mutableStateOf<List<ContactItem>>(emptyList())
         private set
@@ -37,6 +38,40 @@ class AppData(context: Context) {
 
     var theme by mutableStateOf(prefs.theme.coerceIn(0, 3))
         private set
+
+    /** Cỡ chữ toàn app: 0 Nhỏ, 1 Vừa, 2 Lớn, 3 Rất lớn. */
+    var fontSize by mutableStateOf(prefs.fontSize.coerceIn(0, 3))
+        private set
+    /** Hệ số phóng chữ tương ứng với [fontSize]. */
+    val fontFactor: Float get() = FONT_FACTORS[fontSize]
+
+    fun changeFontSize(v: Int) {
+        fontSize = v.coerceIn(0, 3)
+        prefs.fontSize = fontSize
+    }
+
+    /** Nhóm của Gmail đang chọn, và thành viên của từng nhóm (mã nhóm → mã liên hệ). */
+    var groups by mutableStateOf<List<GroupInfo>>(emptyList())
+        private set
+    var groupMembers by mutableStateOf<Map<Long, Set<Long>>>(emptyMap())
+        private set
+
+    /** Đọc lại nhóm (gọi sau khi tạo nhóm / thêm, bỏ người khỏi nhóm). */
+    suspend fun reloadGroups() {
+        val acc = selectedAccount
+        val (g, m) = withContext(Dispatchers.IO) {
+            if (acc == null) emptyList<GroupInfo>() to emptyMap<Long, Set<Long>>()
+            else {
+                val list = groupsRepo.groups(acc)
+                list to groupsRepo.members(list.map { it.id })
+            }
+        }
+        groups = g
+        groupMembers = m
+    }
+
+    /** Các nhóm mà liên hệ [contactId] đang thuộc. */
+    fun groupsOf(contactId: Long): List<GroupInfo> = groups.filter { contactId in (groupMembers[it.id] ?: emptySet()) }
 
     fun changeTheme(v: Int) {
         theme = v.coerceIn(0, 3)
@@ -70,6 +105,7 @@ class AppData(context: Context) {
         calls = log
         lastBackup = prefs.lastBackup
         updateVisible()
+        reloadGroups()
         loaded = true
     }
 
@@ -96,6 +132,13 @@ class AppData(context: Context) {
         else contacts.filter { it.googleAccounts.isEmpty() || sel in it.googleAccounts }
     }
 
+    /** Tìm người có cùng tên (không phân biệt hoa thường, dấu cách thừa). */
+    fun contactByName(name: String): ContactItem? {
+        val n = name.trim().replace(Regex("\\s+"), " ").lowercase()
+        if (n.isEmpty()) return null
+        return visibleContacts.firstOrNull { it.name.trim().replace(Regex("\\s+"), " ").lowercase() == n }
+    }
+
     fun contactFor(number: String): ContactItem? = byKey[PhoneUtil.key(number)]
 
     fun contactById(id: Long): ContactItem? = contacts.firstOrNull { it.id == id }
@@ -104,3 +147,7 @@ class AppData(context: Context) {
     fun daysSinceBackup(): Long? =
         if (lastBackup == 0L) null else (System.currentTimeMillis() - lastBackup) / 86_400_000L
 }
+
+/** Nhỏ, Vừa, Lớn, Rất lớn. */
+val FONT_FACTORS = floatArrayOf(0.9f, 1.0f, 1.15f, 1.3f)
+val FONT_NAMES = listOf("Nhỏ", "Vừa", "Lớn", "Rất lớn")

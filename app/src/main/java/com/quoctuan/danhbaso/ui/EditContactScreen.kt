@@ -1,6 +1,9 @@
 package com.quoctuan.danhbaso.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -81,10 +84,40 @@ fun EditContactScreen(
     val canSave = !saving && name.isNotBlank() && PhoneUtil.local(phone).length >= 3 &&
         (toSim || toGmail || (existing != null && !existing.simOnly))
 
-    fun save() {
+    // Lưu số mới mà tên đã có trong danh bạ → hỏi lại cho chắc
+    var dup by remember { mutableStateOf<ContactItem?>(null) }
+
+    fun doSaveNormal() {
         saving = true
         scope.launch {
             val msg = withContext(Dispatchers.IO) { doSave(data, existing, name.trim(), phone.trim(), toSim, toGmail, wasInSim, wasInGmail) }
+            saving = false
+            Actions.toast(ctx, msg)
+            onSaved()
+        }
+    }
+
+    fun save() {
+        if (existing == null) {
+            val same = data.contactByName(name)
+            if (same != null) {
+                if (same.phones.any { PhoneUtil.key(it) == PhoneUtil.key(phone) }) {
+                    Actions.toast(ctx, "\"${same.name}\" đã có số này rồi")
+                    return
+                }
+                dup = same
+                return
+            }
+        }
+        doSaveNormal()
+    }
+
+    /** Xử lý lựa chọn trong cửa sổ trùng tên: 0 = thay số cũ, 1 = thêm số, giữ cả hai. */
+    fun resolveDup(c: ContactItem, mode: Int) {
+        dup = null
+        saving = true
+        scope.launch {
+            val msg = withContext(Dispatchers.IO) { saveIntoExisting(data, c, phone.trim(), replace = mode == 0) }
             saving = false
             Actions.toast(ctx, msg)
             onSaved()
@@ -159,6 +192,82 @@ fun EditContactScreen(
                 Text("SIM chỉ lưu được tên ngắn (khoảng 14 ký tự, có thể mất dấu). Gmail giữ nguyên tên đầy đủ.", color = C.Sub, fontSize = 12.sp)
             }
         }
+    }
+
+    dup?.let { c ->
+        DuplicateNameDialog(
+            contact = c, newNumber = phone.trim(),
+            onReplace = { resolveDup(c, 0) },
+            onAddBoth = { resolveDup(c, 1) },
+            onSaveNew = { dup = null; doSaveNormal() },
+            onCancel = { dup = null },
+        )
+    }
+}
+
+/** Cửa sổ hỏi khi lưu số mới với tên đã có. */
+@Composable
+private fun DuplicateNameDialog(
+    contact: ContactItem, newNumber: String,
+    onReplace: () -> Unit, onAddBoth: () -> Unit, onSaveNew: () -> Unit, onCancel: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onCancel,
+        containerColor = C.Nav,
+        title = { Text("\"${contact.name}\" đã có trong danh bạ", color = C.Text, fontSize = 20.sp) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Số cũ: " + contact.phones.joinToString(", ") { PhoneUtil.pretty(it) },
+                    color = C.Sub2, fontSize = 15.sp
+                )
+                Text("Số mới: " + PhoneUtil.pretty(newNumber), color = C.Green, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                DupOption("Thay số cũ bằng số mới", "Khi người đó đổi số", onReplace)
+                DupOption("Thêm số mới, giữ cả 2 số", "Người đó có nhiều số", onAddBoth)
+                DupOption("Lưu thành người khác", "Trùng tên nhưng khác người", onSaveNew)
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onCancel) { Text("Hủy", color = C.Sub2) } }
+    )
+}
+
+@Composable
+private fun DupOption(title: String, sub: String, onClick: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.Card)
+            .glowBorder(RoundedCornerShape(14.dp)).clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 11.dp)
+    ) {
+        Text(title, color = C.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text(sub, color = C.Sub, fontSize = 13.sp)
+    }
+}
+
+/**
+ * Lưu số mới vào người đã có (chạy nền).
+ * [replace] = true: thay số đầu tiên bằng số mới; false: thêm số mới, giữ số cũ.
+ */
+private fun saveIntoExisting(data: AppData, c: ContactItem, phone: String, replace: Boolean): String {
+    val old = c.firstPhone
+    if (c.simOnly) {
+        // Người chỉ có trong SIM: SIM mỗi dòng 1 số
+        if (replace) data.simRepo.deleteNumber(old)
+        val r = data.simRepo.insert(c.name, phone)
+        return if (r == SimWriteResult.OK || r == SimWriteResult.SHORTENED)
+            (if (replace) "Đã đổi số của ${c.name} trong SIM" else "Đã thêm số cho ${c.name} trong SIM")
+        else "Không ghi được SIM"
+    }
+    val ok = if (replace) data.contactsRepo.updateNameAndNumber(c.id, c.name, old, phone)
+    else data.contactsRepo.addPhoneToContact(c.id, phone, data.selectedAccount)
+    if (replace && c.inSim) {
+        data.simRepo.deleteNumber(old)
+        data.simRepo.insert(c.name, phone)
+    }
+    return when {
+        !ok -> "Không lưu được, hãy thử lại"
+        replace -> "Đã đổi số của ${c.name}"
+        else -> "Đã thêm số mới cho ${c.name}"
     }
 }
 

@@ -40,7 +40,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Icon
@@ -99,6 +99,16 @@ private fun readClipNumber(ctx: Context): String {
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun DialpadScreen(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (String) -> Unit) {
+    // Bàn phím có cỡ riêng (menu ☰ → Cỡ bàn phím), không bị "Cỡ chữ" toàn app phóng thêm
+    val d = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density, d.fontScale / data.fontFactor)
+    ) { DialpadContent(data, onOpenNumber, onSaveNumber) }
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
+@Composable
+private fun DialpadContent(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (String) -> Unit) {
     val ctx = LocalContext.current
     val view = androidx.compose.ui.platform.LocalView.current
     // Ô số có con trỏ (thanh dọc nhấp nháy): bấm phím sẽ chèn tại vị trí con trỏ
@@ -268,7 +278,7 @@ fun DialpadScreen(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (
                     Modifier.weight(1f).height(keyH).clip(RoundedCornerShape(keyH / 2))
                         .combinedClickable(onClick = { backspace() }, onLongClick = { field = TextFieldValue("") }),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Filled.Backspace, "Xóa số", tint = C.Sub2, modifier = Modifier.size(28.dp)) }
+                ) { Icon(Icons.AutoMirrored.Filled.Backspace, "Xóa số", tint = C.Sub2, modifier = Modifier.size(28.dp)) }
             }
         }
     }

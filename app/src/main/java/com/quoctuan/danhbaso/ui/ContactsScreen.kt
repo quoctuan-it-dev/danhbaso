@@ -81,7 +81,18 @@ fun ContactsScreen(
     val focus = remember { FocusRequester() }
     LaunchedEffect(focusSearch) { if (focusSearch) runCatching { focus.requestFocus() } }
 
-    val list = data.visibleContacts
+    var showCreateGroup by remember { mutableStateOf(false) }
+    // Nhóm đang lọc (null = Tất cả)
+    var groupSel by rememberSaveable { mutableStateOf<Long?>(null) }
+    LaunchedEffect(data.groups) { if (groupSel != null && data.groups.none { it.id == groupSel }) groupSel = null }
+    val base = data.visibleContacts
+    val list = remember(base, groupSel, data.groupMembers) {
+        val sel = groupSel
+        if (sel == null) base else {
+            val m = data.groupMembers[sel] ?: emptySet()
+            base.filter { it.id in m }
+        }
+    }
     val favs = remember(list) { list.filter { it.starred && !it.simOnly } }
     val filtered = remember(list, query) {
         if (query.isBlank()) list else {
@@ -122,7 +133,11 @@ fun ContactsScreen(
                     }
                 }
             }
-            if (query.isBlank()) {
+            // Thanh nhóm: chỉ có khi máy có tài khoản Gmail
+            if (data.selectedAccount != null) {
+                item { GroupBar(data, groupSel, onSelect = { groupSel = it }, onCreate = { showCreateGroup = true }) }
+            }
+            if (query.isBlank() && groupSel == null) {
                 item {
                     Row(Modifier.fillMaxWidth().padding(20.dp, 8.dp, 20.dp, 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Yêu thích", color = C.Blue, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -153,7 +168,7 @@ fun ContactsScreen(
                 }
             }
             if (filtered.isEmpty() && data.loaded) {
-                item { Text(if (query.isBlank()) "Danh bạ trống" else "Không tìm thấy", color = C.Sub, modifier = Modifier.padding(24.dp)) }
+                item { Text(if (query.isNotBlank()) "Không tìm thấy" else if (groupSel != null) "Nhóm này chưa có ai. Mở trang một người → bấm \"＋ Nhóm\" để thêm." else "Danh bạ trống", color = C.Sub, modifier = Modifier.padding(24.dp)) }
             }
             // Danh sách theo chữ cái, mỗi nhóm là một khối bo tròn
             for ((letter, people) in groups) {
@@ -191,6 +206,7 @@ fun ContactsScreen(
         ) { Icon(Icons.Filled.Add, "Thêm liên hệ mới", tint = C.OnBlue, modifier = Modifier.size(30.dp)) }
     }
 
+    if (showCreateGroup) CreateGroupDialog(data, onDismiss = { showCreateGroup = false }) { groupSel = it }
     if (showAccounts) AccountSheet(data, onDismiss = { showAccounts = false }, onChanged = onChanged)
     if (showAddFav) AddFavoriteDialog(data, list.filter { !it.starred && !it.simOnly }, onDismiss = { showAddFav = false }, onChanged = onChanged)
 }

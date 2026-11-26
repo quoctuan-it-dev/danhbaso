@@ -46,6 +46,19 @@ object Actions {
         if (android.os.Build.VERSION.SDK_INT < 33) toast(ctx, "Đã sao chép ${PhoneUtil.pretty(number)}")
     }
 
+    /** Gửi danh thiếp: tên + các số dạng chữ, chọn Zalo / Tin nhắn / Messenger... để gửi. */
+    fun shareContact(ctx: Context, name: String, phones: List<String>) {
+        val text = buildString {
+            append("📇 ").append(name)
+            for (p in phones) append("\n📞 ").append(PhoneUtil.pretty(p))
+        }
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        start(ctx, Intent.createChooser(send, "Gửi danh thiếp qua…"), "Không mở được bảng chia sẻ")
+    }
+
     fun sms(ctx: Context, number: String) {
         start(ctx, Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$number")), "Không mở được app tin nhắn")
     }

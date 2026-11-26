@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
@@ -77,6 +78,7 @@ fun ContactDetailScreen(
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var confirmDelete by remember { mutableStateOf(false) }
+    var showGroups by remember { mutableStateOf(false) }
     val keys = contact.phones.map { PhoneUtil.key(it) }.toSet()
     val history = data.calls.filter { PhoneUtil.key(it.number) in keys }
     val number = contact.firstPhone
@@ -107,6 +109,27 @@ fun ContactDetailScreen(
                 Box(Modifier.padding(top = 4.dp).clip(RoundedCornerShape(10.dp)).background(C.GreenBg).padding(horizontal = 10.dp, vertical = 3.dp)) {
                     Text("Đã lưu: $savedIn", color = C.Green, fontSize = 12.sp)
                 }
+                // Nhóm của người này + nút "＋ Nhóm" (SIM không hỗ trợ nhóm)
+                val acc = data.selectedAccount
+                if (!contact.simOnly && acc != null) {
+                    Gap(8)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        for (g in data.groupsOf(contact.id)) {
+                            Box(
+                                Modifier.clip(RoundedCornerShape(12.dp)).background(C.BlueBg)
+                                    .clickable { showGroups = true }.padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) { Text(g.title, color = C.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                        }
+                        Box(
+                            Modifier.clip(RoundedCornerShape(12.dp)).border(1.dp, C.Blue, RoundedCornerShape(12.dp))
+                                .clickable {
+                                    if (acc in contact.googleAccounts) showGroups = true
+                                    else Actions.toast(ctx, "Người này chưa lưu trong Gmail. Bấm Sửa → chọn \"Lưu vào Gmail\" trước.")
+                                }
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) { Text("＋ Nhóm", color = C.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                    }
+                }
             }
             Gap(18)
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -132,9 +155,23 @@ fun ContactDetailScreen(
                 SmallOutlined("Xóa", Icons.Filled.Delete, C.Red, Modifier.weight(1f)) { confirmDelete = true }
                 SmallOutlined("Chặn số", Icons.Filled.Block, C.Orange, Modifier.weight(1f)) { Actions.block(ctx, number) }
             }
+            Gap(10)
+            // Gửi danh thiếp: tên + các số qua Zalo, tin nhắn...
+            Row(
+                Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(50.dp).clip(RoundedCornerShape(14.dp))
+                    .border(1.5.dp, C.Blue, RoundedCornerShape(14.dp))
+                    .clickable { Actions.shareContact(ctx, contact.name, contact.phones) },
+                horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.Share, null, tint = C.Blue, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Gửi danh thiếp", color = C.Blue, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
             Gap(18)
         }
     )
+
+    if (showGroups) PickGroupsDialog(data, contact) { showGroups = false }
 
     if (confirmDelete) {
         AlertDialog(

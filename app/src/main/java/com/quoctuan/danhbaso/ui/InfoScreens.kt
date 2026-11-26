@@ -19,7 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -123,7 +123,7 @@ fun UpdateScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = C.Blue, contentColor = C.OnBlue)
             ) {
-                Icon(Icons.Filled.OpenInNew, null)
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, null)
                 Spacer(Modifier.width(8.dp))
                 Text("Mở trang GitHub để xem bản mới", fontWeight = FontWeight.Bold)
             }

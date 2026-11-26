@@ -73,3 +73,42 @@ fun ThemeDialog(data: AppData, onDismiss: () -> Unit) {
         confirmButton = { TextButton(onClick = onDismiss) { Text("Xong", color = C.Blue) } }
     )
 }
+
+/** Hộp chọn cỡ chữ toàn app: Nhỏ / Vừa / Lớn / Rất lớn, mỗi dòng có chữ xem trước. */
+@Composable
+fun FontSizeDialog(data: AppData, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = C.Nav,
+        title = { Text("Cỡ chữ toàn app", color = C.Text) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.quoctuan.danhbaso.data.FONT_NAMES.forEachIndexed { i, name ->
+                    val sel = data.fontSize == i
+                    val shape = RoundedCornerShape(14.dp)
+                    // Chữ xem trước tính theo cỡ của lựa chọn, so với cỡ đang dùng
+                    val k = com.quoctuan.danhbaso.data.FONT_FACTORS[i] / data.fontFactor
+                    Row(
+                        Modifier.fillMaxWidth().clip(shape)
+                            .background(if (sel) C.BlueBg else C.Card)
+                            .then(if (sel) Modifier.border(2.dp, C.Green, shape) else Modifier)
+                            .clickable { data.changeFontSize(i) }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(name, color = C.Text, fontSize = (16 * k).sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
+                            Text("Mẹ Kiều · 0778 638 687", color = C.Sub, fontSize = (13 * k).sp, maxLines = 1)
+                        }
+                        if (sel) Icon(Icons.Filled.Check, "Đang dùng", tint = C.Green, modifier = Modifier.size(24.dp))
+                    }
+                }
+                Text(
+                    "Bấm là đổi ngay cho mọi màn hình. Bàn phím số vẫn chỉnh riêng ở \"Cỡ bàn phím\".",
+                    color = C.Sub, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Xong", color = C.Blue) } }
+    )
+}

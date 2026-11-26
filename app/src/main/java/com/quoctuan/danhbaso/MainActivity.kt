@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.outlined.Person
@@ -93,8 +94,14 @@ class MainActivity : ComponentActivity() {
         val data = AppData(applicationContext)
         setContent {
             AppTheme(data.theme) {
-                Box(Modifier.fillMaxSize().background(C.background).safeDrawingPadding()) {
-                    Root(data)
+                // Cỡ chữ toàn app (menu ☰ → Cỡ chữ): nhân thêm vào cỡ chữ của điện thoại
+                val d = androidx.compose.ui.platform.LocalDensity.current
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density, d.fontScale * data.fontFactor)
+                ) {
+                    Box(Modifier.fillMaxSize().background(C.background).safeDrawingPadding()) {
+                        Root(data)
+                    }
                 }
             }
         }
@@ -186,6 +193,7 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
     var focusSearch by remember { mutableStateOf(false) }
     var showKeypadSize by remember { mutableStateOf(false) }
     var showTheme by remember { mutableStateOf(false) }
+    var showFont by remember { mutableStateOf(false) }
     val drawer = rememberDrawerState(DrawerValue.Closed)
 
     fun push(r: Route) = stack.add(r)
@@ -212,6 +220,9 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
                 }, onTheme = {
                     scope.launch { drawer.close() }
                     showTheme = true
+                }, onFont = {
+                    scope.launch { drawer.close() }
+                    showFont = true
                 }) { dest ->
                     scope.launch { drawer.close() }
                     push(dest)
@@ -288,10 +299,11 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
     }
     if (showKeypadSize) com.quoctuan.danhbaso.ui.KeypadSizeDialog(data) { showKeypadSize = false }
     if (showTheme) com.quoctuan.danhbaso.ui.ThemeDialog(data) { showTheme = false }
+    if (showFont) com.quoctuan.danhbaso.ui.FontSizeDialog(data) { showFont = false }
 }
 
 @Composable
-private fun AppDrawer(data: AppData, onKeypadSize: () -> Unit, onTheme: () -> Unit, onPick: (Route) -> Unit) {
+private fun AppDrawer(data: AppData, onKeypadSize: () -> Unit, onTheme: () -> Unit, onFont: () -> Unit, onPick: (Route) -> Unit) {
     ModalDrawerSheet(drawerContainerColor = C.Nav, drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)) {
         Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 24.dp)) {
             Text("Danh bạ số", color = C.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp))
@@ -314,6 +326,11 @@ private fun AppDrawer(data: AppData, onKeypadSize: () -> Unit, onTheme: () -> Un
                 label = { Text("Cỡ bàn phím: " + listOf("Nhỏ", "Vừa", "Lớn")[data.keypadSize]) },
                 icon = { Icon(Icons.Filled.Dialpad, null) },
                 selected = false, onClick = onKeypadSize, colors = colors
+            )
+            NavigationDrawerItem(
+                label = { Text("Cỡ chữ: " + com.quoctuan.danhbaso.data.FONT_NAMES[data.fontSize]) },
+                icon = { Icon(Icons.Filled.FormatSize, null) },
+                selected = false, onClick = onFont, colors = colors
             )
             NavigationDrawerItem(
                 label = { Text("Màu giao diện: " + com.quoctuan.danhbaso.ui.THEME_NAMES[data.theme]) },
