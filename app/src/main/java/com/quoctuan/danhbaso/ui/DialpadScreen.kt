@@ -3,7 +3,6 @@ package com.quoctuan.danhbaso.ui
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.ContentCopy
@@ -96,7 +95,6 @@ private fun readClipNumber(ctx: Context): String {
 }
 
 /** Bàn phím số: gõ vài số là hiện gợi ý tên. */
-@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun DialpadScreen(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (String) -> Unit) {
     // Bàn phím có cỡ riêng (menu ☰ → Cỡ bàn phím), không bị "Cỡ chữ" toàn app phóng thêm
@@ -106,7 +104,7 @@ fun DialpadScreen(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (
     ) { DialpadContent(data, onOpenNumber, onSaveNumber) }
 }
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun DialpadContent(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (String) -> Unit) {
     val ctx = LocalContext.current
@@ -315,7 +313,6 @@ fun KeypadSizeDialog(data: AppData, onDismiss: () -> Unit) {
  * Một phím số kiểu B: vòng tròn viền mảnh.
  * Chỉ khi ngón tay đang chạm, phím mới sáng xanh + rung nhẹ; nhả tay là trở lại bình thường.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun androidx.compose.foundation.layout.RowScope.DialKey(
     n: String, l: String,

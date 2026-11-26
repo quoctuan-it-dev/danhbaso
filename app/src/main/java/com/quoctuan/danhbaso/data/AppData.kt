@@ -3,6 +3,8 @@ package com.quoctuan.danhbaso.data
 import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
 import com.quoctuan.danhbaso.util.PhoneUtil
 import kotlinx.coroutines.Dispatchers
@@ -30,18 +32,18 @@ class AppData(context: Context) {
         private set
     var simInfo by mutableStateOf(SimInfo.NONE)
         private set
-    var lastBackup by mutableStateOf(0L)
+    var lastBackup by mutableLongStateOf(0L)
         private set
     var loaded by mutableStateOf(false)
         private set
-    var keypadSize by mutableStateOf(prefs.keypadSize)
+    var keypadSize by mutableIntStateOf(prefs.keypadSize)
         private set
 
-    var theme by mutableStateOf(prefs.theme.coerceIn(0, 3))
+    var theme by mutableIntStateOf(prefs.theme.coerceIn(0, 3))
         private set
 
     /** Cỡ chữ toàn app: 0 Nhỏ, 1 Vừa, 2 Lớn, 3 Rất lớn. */
-    var fontSize by mutableStateOf(prefs.fontSize.coerceIn(0, 3))
+    var fontSize by mutableIntStateOf(prefs.fontSize.coerceIn(0, 3))
         private set
     /** Hệ số phóng chữ tương ứng với [fontSize]. */
     val fontFactor: Float get() = FONT_FACTORS[fontSize]

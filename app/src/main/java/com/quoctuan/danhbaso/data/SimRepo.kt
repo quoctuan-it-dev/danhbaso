@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import android.os.Build
 import android.provider.SimPhonebookContract
 import android.telephony.SubscriptionManager
@@ -20,7 +21,7 @@ import com.quoctuan.danhbaso.util.TextUtil
 class SimRepo(private val context: Context) {
 
     private val cr get() = context.contentResolver
-    private val legacyUri: Uri = Uri.parse("content://icc/adn")
+    private val legacyUri: Uri = "content://icc/adn".toUri()
 
     /** Mã SIM đang dùng (SIM 1). */
     @SuppressLint("MissingPermission")

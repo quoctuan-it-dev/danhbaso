@@ -98,13 +98,6 @@ class GroupsRepo(private val context: Context) {
         return ids
     }
 
-    /** Liên hệ này có nằm trong Gmail [account] không (mới cho vào nhóm được). */
-    fun canJoin(contactId: Long, account: String): Boolean = try {
-        rawIds(contactId, account).isNotEmpty()
-    } catch (e: Exception) {
-        false
-    }
-
     /** Cho liên hệ vào nhóm. */
     fun addMember(contactId: Long, groupId: Long, account: String): Boolean = try {
         val raw = rawIds(contactId, account).firstOrNull()

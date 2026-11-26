@@ -267,8 +267,9 @@ fun dayBucket(time: Long): Int {
     }
 }
 
-private val hmFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-private val dmFormat = SimpleDateFormat("HH:mm d 'thg' M", Locale.getDefault())
+private val VI_LOCALE: Locale = Locale.forLanguageTag("vi-VN")
+private val hmFormat = SimpleDateFormat("HH:mm", VI_LOCALE)
+private val dmFormat = SimpleDateFormat("HH:mm d 'thg' M", VI_LOCALE)
 
 /** Định dạng giờ (gọi trên luồng giao diện). */
 fun formatTime(time: Long): String =

@@ -34,7 +34,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -64,14 +63,12 @@ import androidx.compose.ui.unit.sp
 import com.quoctuan.danhbaso.data.AppData
 import com.quoctuan.danhbaso.data.ContactItem
 import com.quoctuan.danhbaso.util.Actions
-import com.quoctuan.danhbaso.util.PhoneUtil
 import com.quoctuan.danhbaso.util.TextUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Màn Danh bạ: vòng tròn Gmail góc trên, Yêu thích, danh sách theo chữ cái. */
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ContactsScreen(
     data: AppData,

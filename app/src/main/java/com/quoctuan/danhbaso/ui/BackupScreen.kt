@@ -51,6 +51,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -270,7 +271,7 @@ private fun RestoreTab(data: AppData, onChanged: () -> Unit) {
     var toGmail by remember { mutableStateOf(account != null) }
     var toSim by remember { mutableStateOf(data.simInfo.available) }
     var busy by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf(0f) }
+    var progress by remember { mutableFloatStateOf(0f) }
     var status by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var result by remember { mutableStateOf<RestoreResult?>(null) }
@@ -402,7 +403,7 @@ private fun VcfTab(data: AppData, onChanged: () -> Unit) {
     var fileLabel by remember { mutableStateOf("") }
     var found by remember { mutableStateOf<List<BackupContact>?>(null) }
     var busy by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf(0f) }
+    var progress by remember { mutableFloatStateOf(0f) }
     var error by remember { mutableStateOf<String?>(null) }
     var result by remember { mutableStateOf<RestoreResult?>(null) }
     val exportList = remember(data.contacts) { data.backup.collect(data.contacts) }
@@ -443,7 +444,7 @@ private fun VcfTab(data: AppData, onChanged: () -> Unit) {
         Text("File danh bạ chuẩn, mở được trên iPhone, máy khác, Google Danh bạ.", color = C.Sub2, fontSize = 14.sp)
         Gap(10)
         PrimaryButton("Xuất ${exportList.size} liên hệ", enabled = exportList.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
-            saver.launch("danhba_" + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()) + ".vcf")
+            saver.launch("danhba_" + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) + ".vcf")
         }
         Gap(10)
         Box(

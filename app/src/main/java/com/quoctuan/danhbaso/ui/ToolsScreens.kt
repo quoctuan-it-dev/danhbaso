@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -51,7 +52,7 @@ import kotlinx.coroutines.withContext
 
 /** Nút chính (dải màu) dùng chung cho các màn công cụ. */
 @Composable
-internal fun PrimaryButton(text: String, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun PrimaryButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     Box(
         modifier.heightIn(min = 46.dp).clip(shape)
@@ -204,14 +205,13 @@ private fun ConfirmMergeDialog(text: String, onDismiss: () -> Unit, onOk: () -> 
 /** Màn "Chép SIM ↔ Gmail". */
 @Composable
 fun CopySimGmailScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
-    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val acc = data.selectedAccount
     val sim = data.simInfo
     var simToGmail by remember { mutableStateOf<List<SimRecord>?>(null) }
     var gmailToSim by remember { mutableStateOf<List<ContactItem>?>(null) }
     var busy by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf(0f) }
+    var progress by remember { mutableFloatStateOf(0f) }
     var result by remember { mutableStateOf<Pair<String, CopyResult>?>(null) }
 
     // Đếm lại mỗi khi danh bạ thay đổi

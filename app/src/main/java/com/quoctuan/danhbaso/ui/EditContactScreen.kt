@@ -323,7 +323,7 @@ private fun doSave(
     if (toSim && !wasInSim) simInsert()
     else if (!toSim && wasInSim) {
         data.simRepo.deleteNumber(old); notes += "bỏ khỏi SIM"
-    } else if (toSim && wasInSim && changed) {
+    } else if (toSim && changed) {
         data.simRepo.deleteNumber(old); simInsert()
     }
     return if (notes.isEmpty()) "Đã lưu thay đổi" else "Đã lưu thay đổi: " + notes.joinToString(", ")

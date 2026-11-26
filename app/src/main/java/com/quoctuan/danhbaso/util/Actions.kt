@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.core.net.toUri
 import android.provider.Settings
 import android.telecom.TelecomManager
 import android.widget.Toast
@@ -76,12 +77,12 @@ object Actions {
     }
 
     fun sms(ctx: Context, number: String) {
-        start(ctx, Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$number")), "Không mở được app tin nhắn")
+        start(ctx, Intent(Intent.ACTION_SENDTO, "smsto:$number".toUri()), "Không mở được app tin nhắn")
     }
 
-    /** Mở Zalo bằng đường link chính thức zalo.me/[số]. Số chưa có Zalo thì Zalo tự báo. */
+    /** Mở Zalo bằng đường link chính thức zalo.me/<số>. Số chưa có Zalo thì Zalo tự báo. */
     fun zalo(ctx: Context, number: String) {
-        val uri = Uri.parse("https://zalo.me/${PhoneUtil.local(number)}")
+        val uri = "https://zalo.me/${PhoneUtil.local(number)}".toUri()
         start(ctx, Intent(Intent.ACTION_VIEW, uri), "Không mở được Zalo")
     }
 
@@ -111,7 +112,7 @@ object Actions {
     }
 
     fun openUrl(ctx: Context, url: String) {
-        start(ctx, Intent(Intent.ACTION_VIEW, Uri.parse(url)), "Không mở được trình duyệt")
+        start(ctx, Intent(Intent.ACTION_VIEW, url.toUri()), "Không mở được trình duyệt")
     }
 
     /** Mở Cài đặt để đăng nhập thêm Gmail. */
