@@ -93,7 +93,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val data = AppData(applicationContext)
         setContent {
-            AppTheme(data.theme) {
+            AppTheme(data.theme, data.darkMode) {
                 // Cỡ chữ toàn app (menu ☰ → Cỡ chữ): nhân thêm vào cỡ chữ của điện thoại
                 val d = androidx.compose.ui.platform.LocalDensity.current
                 androidx.compose.runtime.CompositionLocalProvider(

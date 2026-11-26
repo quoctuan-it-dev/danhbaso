@@ -76,6 +76,15 @@ class AppData(context: Context) {
     /** Các nhóm mà liên hệ [contactId] đang thuộc. */
     fun groupsOf(contactId: Long): List<GroupInfo> = groups.filter { contactId in (groupMembers[it.id] ?: emptySet()) }
 
+    /** Sáng / Tối: 0 Tự động theo điện thoại, 1 Luôn sáng, 2 Luôn tối. */
+    var darkMode by mutableIntStateOf(prefs.darkMode.coerceIn(0, 2))
+        private set
+
+    fun changeDarkMode(v: Int) {
+        darkMode = v.coerceIn(0, 2)
+        prefs.darkMode = darkMode
+    }
+
     fun changeTheme(v: Int) {
         theme = v.coerceIn(0, 3)
         prefs.theme = theme

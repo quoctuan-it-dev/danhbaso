@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -39,6 +40,34 @@ fun ThemeDialog(data: AppData, onDismiss: () -> Unit) {
         title = { Text("Màu giao diện", color = C.Text) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Sáng / Tối
+                Text("Sáng / Tối", color = C.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val labels = listOf("📱 Tự động", "☀️ Sáng", "🌙 Tối")
+                    labels.forEachIndexed { i, label ->
+                        val on = data.darkMode == i
+                        val shape = RoundedCornerShape(12.dp)
+                        Box(
+                            Modifier.weight(1f).clip(shape)
+                                .background(if (on) C.BlueBg else C.Card)
+                                .then(if (on) Modifier.border(2.dp, C.Green, shape) else Modifier.border(1.dp, C.Border, shape))
+                                .clickable { data.changeDarkMode(i) }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                label, color = if (on) C.Text else C.Sub2, fontSize = 14.sp,
+                                fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, maxLines = 1
+                            )
+                        }
+                    }
+                }
+                Text(
+                    if (data.darkMode == 0) "Tự động: điện thoại sáng thì app sáng, điện thoại tối thì app tối." else MODE_NAMES[data.darkMode],
+                    color = C.Sub, fontSize = 12.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                Text("Bộ màu", color = C.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 THEME_NAMES.forEachIndexed { i, name ->
                     val sel = data.theme == i
                     val shape = RoundedCornerShape(14.dp)
@@ -65,7 +94,7 @@ fun ThemeDialog(data: AppData, onDismiss: () -> Unit) {
                     }
                 }
                 Text(
-                    "Bấm là đổi ngay. Chế độ Sáng/Tối vẫn theo điện thoại.",
+                    "Bấm là đổi ngay. Mỗi bộ màu đều có bản sáng và bản tối.",
                     color = C.Sub, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp)
                 )
             }

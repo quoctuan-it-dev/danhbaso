@@ -180,6 +180,9 @@ object C {
 }
 
 /** Tên các bộ màu (hiện trong menu ☰ → Màu giao diện). */
+/** Chế độ Sáng / Tối (menu ☰ → Màu giao diện). */
+val MODE_NAMES = listOf("Tự động theo điện thoại", "Luôn sáng", "Luôn tối")
+
 val THEME_NAMES = listOf("Navy biển", "Xanh lá rừng", "Xanh ngọc", "Than chì")
 
 /** Màu mẫu (điểm nhấn, nền) để vẽ vòng tròn xem trước. */
@@ -198,9 +201,21 @@ private val avatarPalette = listOf(
 fun avatarColor(name: String): Color = avatarPalette[(name.hashCode() and 0x7fffffff) % avatarPalette.size]
 
 @Composable
-fun AppTheme(theme: Int = 0, content: @Composable () -> Unit) {
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+fun AppTheme(theme: Int = 0, mode: Int = 0, content: @Composable () -> Unit) {
+    // mode: 0 = Tự động theo điện thoại, 1 = Luôn sáng, 2 = Luôn tối
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val dark = when (mode) { 1 -> false; 2 -> true; else -> systemDark }
     C.apply(dark, theme)
+    // Chữ / biểu tượng trên thanh trạng thái và thanh điều hướng: tối khi app sáng, sáng khi app tối
+    val view = androidx.compose.ui.platform.LocalView.current
+    if (!view.isInEditMode) {
+        androidx.compose.runtime.SideEffect {
+            val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
+            val ctl = androidx.core.view.WindowCompat.getInsetsController(window, view)
+            ctl.isAppearanceLightStatusBars = !dark
+            ctl.isAppearanceLightNavigationBars = !dark
+        }
+    }
     val scheme = if (dark) darkColorScheme(
         primary = C.Blue, onPrimary = C.OnBlue, background = C.Bg, onBackground = C.Text,
         surface = C.Card, onSurface = C.Text, surfaceVariant = C.Card2, onSurfaceVariant = C.Sub2,
@@ -313,13 +328,20 @@ fun TopBar(title: String, onBack: () -> Unit, actions: @Composable () -> Unit = 
 fun RoundAction(
     label: String, bg: Color, fg: Color, onClick: () -> Unit,
     icon: ImageVector? = null, text: String? = null,
+    brush: androidx.compose.ui.graphics.Brush? = null, glowColor: Color? = null,
 ) {
     Column(
         Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Box(Modifier.size(56.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.size(56.dp)
+                .then(if (glowColor != null) Modifier.glow(CircleShape, 10.dp, glowColor) else Modifier)
+                .clip(CircleShape)
+                .then(if (brush != null) Modifier.background(brush) else Modifier.background(bg)),
+            contentAlignment = Alignment.Center
+        ) {
             if (icon != null) Icon(icon, null, tint = fg)
             if (text != null) Text(text, color = fg, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
