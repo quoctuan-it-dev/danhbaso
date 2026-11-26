@@ -38,6 +38,14 @@ object Actions {
         start(ctx, Intent(action, uri), "Không gọi được số này")
     }
 
+    /** Sao chép số điện thoại vào bộ nhớ tạm để dán sang Zalo, tin nhắn... */
+    fun copy(ctx: Context, number: String) {
+        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+        cm.setPrimaryClip(ClipData.newPlainText("Số điện thoại", PhoneUtil.local(number)))
+        // Android 13+ tự hiện thông báo "Đã sao chép", máy cũ thì app tự báo
+        if (android.os.Build.VERSION.SDK_INT < 33) toast(ctx, "Đã sao chép ${PhoneUtil.pretty(number)}")
+    }
+
     fun sms(ctx: Context, number: String) {
         start(ctx, Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$number")), "Không mở được app tin nhắn")
     }

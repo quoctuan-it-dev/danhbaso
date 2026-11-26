@@ -6,6 +6,7 @@ import android.content.Context
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -143,7 +144,9 @@ fun DialpadScreen(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (
     val numberSp = listOf(32, 38, 44)[sz].sp
 
     // Gợi ý: người trong danh bạ có số chứa dãy đã gõ, rồi tới số trong nhật ký cuộc gọi
-    val suggestions: List<Pair<String?, String>> = androidx.compose.runtime.remember(digits, data.visibleContacts, data.calls) { if (digits.length < 2) emptyList() else {
+    val suggestions: List<Pair<String?, String>> = androidx.compose.runtime.remember(digits, data.visibleContacts, data.calls) {
+        // Có * hoặc # = mã nhà mạng (*101#, *#06#...) → không gợi ý tên
+        if (digits.length < 2 || digits.any { it == '*' || it == '#' }) emptyList() else {
         val q = digits.filter { it.isDigit() }
         val fromContacts = data.visibleContacts.flatMap { c -> c.phones.map { c.name to it } }
             .filter { PhoneUtil.local(it.second).contains(q) }
@@ -176,6 +179,12 @@ fun DialpadScreen(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (
                         Text(name ?: PhoneUtil.pretty(number), color = C.Text, fontSize = nameSp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(if (name == null) "Số chưa lưu" else PhoneUtil.pretty(number), color = C.Sub, fontSize = numSp)
                     }
+                    Box(
+                        Modifier.size(44.dp).clip(RoundedCornerShape(22.dp)).background(C.Search)
+                            .clickable { Actions.copy(ctx, number) },
+                        contentAlignment = Alignment.Center
+                    ) { Icon(Icons.Filled.ContentCopy, "Sao chép số", tint = C.Sub2, modifier = Modifier.size(22.dp)) }
+                    Spacer(Modifier.width(8.dp))
                     Box(
                         Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).background(C.GreenBg)
                             .clickable { Actions.call(ctx, number) },

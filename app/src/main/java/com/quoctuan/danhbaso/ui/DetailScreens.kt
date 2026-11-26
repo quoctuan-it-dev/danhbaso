@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
@@ -94,10 +95,14 @@ fun ContactDetailScreen(
                 Gap(10)
                 Text(contact.name, color = C.Text, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 for (p in contact.phones) {
-                    Text(
-                        PhoneUtil.pretty(p) + " · Di động", color = C.Sub2, fontSize = 16.sp,
-                        modifier = Modifier.clickable { Actions.call(ctx, p) }.padding(2.dp)
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            PhoneUtil.pretty(p) + " · Di động", color = C.Sub2, fontSize = 17.sp,
+                            modifier = Modifier.clickable { Actions.call(ctx, p) }.padding(2.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        CopyButton { Actions.copy(ctx, p) }
+                    }
                 }
                 Box(Modifier.padding(top = 4.dp).clip(RoundedCornerShape(10.dp)).background(C.GreenBg).padding(horizontal = 10.dp, vertical = 3.dp)) {
                     Text("Đã lưu: $savedIn", color = C.Green, fontSize = 12.sp)
@@ -175,7 +180,11 @@ fun NumberDetailScreen(
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Avatar(null, 96.dp)
                 Gap(10)
-                Text(PhoneUtil.pretty(number), color = C.Text, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(PhoneUtil.pretty(number), color = C.Text, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.width(8.dp))
+                    CopyButton { Actions.copy(ctx, number) }
+                }
                 Text("Số chưa lưu", color = C.Sub, fontSize = 14.sp)
                 Gap(16)
                 Button(
@@ -201,6 +210,20 @@ fun NumberDetailScreen(
             Gap(18)
         }
     )
+}
+
+/** Nút tròn nhỏ "Sao chép số" đặt cạnh số điện thoại. */
+@Composable
+private fun CopyButton(onClick: () -> Unit) {
+    Row(
+        Modifier.clip(RoundedCornerShape(16.dp)).background(C.Search).clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Filled.ContentCopy, null, tint = C.Blue, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(4.dp))
+        Text("Sao chép", color = C.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    }
 }
 
 @Composable
