@@ -165,7 +165,8 @@ fun DialpadScreen(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (
             items(suggestions) { (name, number) ->
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(C.Card)
-                        .clickable { if (name == null) onOpenNumber(number) else Actions.call(ctx, number) }
+                        // Bấm vào dòng → mở trang thông tin; bấm nút xanh bên phải → gọi
+                        .clickable { onOpenNumber(number) }
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -175,7 +176,11 @@ fun DialpadScreen(data: AppData, onOpenNumber: (String) -> Unit, onSaveNumber: (
                         Text(name ?: PhoneUtil.pretty(number), color = C.Text, fontSize = nameSp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(if (name == null) "Số chưa lưu" else PhoneUtil.pretty(number), color = C.Sub, fontSize = numSp)
                     }
-                    Icon(Icons.Filled.Call, "Gọi", tint = C.Green, modifier = Modifier.size(26.dp))
+                    Box(
+                        Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).background(C.GreenBg)
+                            .clickable { Actions.call(ctx, number) },
+                        contentAlignment = Alignment.Center
+                    ) { Icon(Icons.Filled.Call, "Gọi", tint = C.Green, modifier = Modifier.size(26.dp)) }
                 }
             }
         }
