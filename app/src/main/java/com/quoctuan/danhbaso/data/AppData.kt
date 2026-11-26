@@ -16,6 +16,7 @@ class AppData(context: Context) {
     val simRepo = SimRepo(context)
     val backup = BackupManager(context, contactsRepo, simRepo)
     val groupsRepo = GroupsRepo(context)
+    val cleanup = Cleanup(contactsRepo, simRepo)
 
     var contacts by mutableStateOf<List<ContactItem>>(emptyList())
         private set

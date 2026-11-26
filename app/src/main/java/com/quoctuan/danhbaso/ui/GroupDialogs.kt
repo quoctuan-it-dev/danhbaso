@@ -326,3 +326,77 @@ fun DeleteGroupDialog(data: AppData, group: com.quoctuan.danhbaso.data.GroupInfo
         dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy", color = C.Sub2) } }
     )
 }
+
+/** Thêm nhiều người vào một nhóm (dùng khi chọn nhiều ở màn Danh bạ). */
+@Composable
+fun BulkGroupDialog(data: AppData, people: List<ContactItem>, onDismiss: () -> Unit, onDone: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val acc = data.selectedAccount
+    var creating by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+
+    fun addAll(groupId: Long, title: String) {
+        if (acc == null || busy) return
+        busy = true
+        scope.launch {
+            val members = data.groupMembers[groupId] ?: emptySet()
+            var added = 0
+            var skipped = 0
+            withContext(Dispatchers.IO) {
+                for (c in people) {
+                    when {
+                        c.id in members -> {}
+                        c.simOnly || acc !in c.googleAccounts -> skipped++
+                        data.groupsRepo.addMember(c.id, groupId, acc) -> added++
+                        else -> skipped++
+                    }
+                }
+            }
+            data.reloadGroups()
+            busy = false
+            Actions.toast(ctx, "Đã thêm $added người vào \"$title\"" + if (skipped > 0) " (bỏ qua $skipped người chưa lưu trong Gmail)" else "")
+            onDone()
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = C.Nav,
+        title = { Text("Thêm ${people.size} người vào nhóm", color = C.Text) },
+        text = {
+            Column(
+                Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (g in data.groups) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.Card)
+                            .clickable { addAll(g.id, g.title) }.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(g.title, color = C.Text, fontSize = 17.sp, modifier = Modifier.weight(1f))
+                        Text("${data.groupMembers[g.id]?.size ?: 0}", color = C.Sub, fontSize = 14.sp)
+                    }
+                }
+                val shape = RoundedCornerShape(14.dp)
+                Row(
+                    Modifier.fillMaxWidth().clip(shape).border(1.5.dp, C.Blue, shape)
+                        .clickable { creating = true }.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Add, null, tint = C.Blue)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Tạo nhóm mới…", color = C.Blue, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Hủy", color = C.Sub2) } }
+    )
+
+    if (creating) {
+        CreateGroupDialog(data, onDismiss = { creating = false }) { newId ->
+            addAll(newId, data.groups.firstOrNull { it.id == newId }?.title ?: "nhóm mới")
+        }
+    }
+}

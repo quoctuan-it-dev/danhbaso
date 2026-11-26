@@ -9,6 +9,7 @@ import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -66,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.quoctuan.danhbaso.data.AppData
 import com.quoctuan.danhbaso.data.BackupContact
+import com.quoctuan.danhbaso.data.Vcf
 import com.quoctuan.danhbaso.data.BackupCrypto
 import com.quoctuan.danhbaso.data.RestoreResult
 import com.quoctuan.danhbaso.util.Actions
@@ -102,7 +104,7 @@ fun BackupScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
             Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.Card).padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            for ((i, t) in listOf("Sao lưu", "Khôi phục").withIndex()) {
+            for ((i, t) in listOf("Sao lưu", "Khôi phục", "File VCF").withIndex()) {
                 Box(
                     Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(10.dp))
                         .background(if (tab == i) C.Chip else Color.Transparent).clickable { tab = i },
@@ -114,7 +116,11 @@ fun BackupScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            if (tab == 0) BackupTab(data) else RestoreTab(data, onChanged)
+            when (tab) {
+                0 -> BackupTab(data)
+                1 -> RestoreTab(data, onChanged)
+                else -> VcfTab(data, onChanged)
+            }
         }
     }
 }
@@ -379,6 +385,138 @@ private fun RestoreTab(data: AppData, onChanged: () -> Unit) {
                     Text(r.simFailed.take(10).joinToString("\n"), color = C.Sub2, fontSize = 12.sp)
                     if (r.simFailed.size > 10) Text("… và ${r.simFailed.size - 10} số khác (đã có đủ bên Gmail)", color = C.Sub, fontSize = 12.sp)
                 }
+            }
+        }
+    }
+}
+
+/** Tab "File VCF": xuất / nhập danh bạ dạng chuẩn (không mã hóa). */
+@Composable
+private fun VcfTab(data: AppData, onChanged: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val account = data.selectedAccount
+    var toGmail by remember { mutableStateOf(account != null) }
+    var toSim by remember { mutableStateOf(false) }
+    var fileUri by remember { mutableStateOf<Uri?>(null) }
+    var fileLabel by remember { mutableStateOf("") }
+    var found by remember { mutableStateOf<List<BackupContact>?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf(0f) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var result by remember { mutableStateOf<RestoreResult?>(null) }
+    val exportList = remember(data.contacts) { data.backup.collect(data.contacts) }
+
+    val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/x-vcard")) { uri ->
+        if (uri != null) scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    ctx.contentResolver.openOutputStream(uri)?.use { it.write(Vcf.write(exportList)) } != null
+                } catch (e: Exception) { false }
+            }
+            Actions.toast(ctx, if (ok) "Đã xuất ${exportList.size} liên hệ ra file VCF" else "Không ghi được file")
+        }
+    }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            fileUri = uri; fileLabel = describeFile(ctx, uri); result = null; error = null; found = null
+            scope.launch {
+                found = withContext(Dispatchers.IO) {
+                    try {
+                        val bytes = ctx.contentResolver.openInputStream(uri)?.use { s ->
+                            val b = s.readBytes()
+                            if (b.size > 10 * 1024 * 1024) null else b
+                        }
+                        bytes?.let { Vcf.read(it) }
+                    } catch (e: Exception) { null }
+                }
+                if (found == null) error = "Không đọc được file (file quá lớn hoặc không phải file VCF)."
+                else if (found!!.isEmpty()) error = "File không có liên hệ nào có số điện thoại."
+            }
+        }
+    }
+
+    // Xuất
+    CardBox {
+        Text("📤  Xuất file VCF", color = C.Text, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        Gap(6)
+        Text("File danh bạ chuẩn, mở được trên iPhone, máy khác, Google Danh bạ.", color = C.Sub2, fontSize = 14.sp)
+        Gap(10)
+        PrimaryButton("Xuất ${exportList.size} liên hệ", enabled = exportList.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+            saver.launch("danhba_" + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()) + ".vcf")
+        }
+        Gap(10)
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(C.Orange.copy(alpha = 0.15f))
+                .border(1.dp, C.Orange, RoundedCornerShape(12.dp)).padding(10.dp)
+        ) {
+            Text(
+                "⚠️ File VCF KHÔNG mã hóa, ai có file cũng đọc được. Để sao lưu an toàn hãy dùng tab \"Sao lưu\".",
+                color = C.Orange, fontSize = 13.sp
+            )
+        }
+    }
+
+    // Nhập
+    CardBox {
+        Text("📥  Nhập file VCF", color = C.Text, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        Gap(6)
+        Text("Chọn file .vcf → chọn lưu vào Gmail / SIM → số đã có sẽ tự bỏ qua.", color = C.Sub2, fontSize = 14.sp)
+        Gap(10)
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(C.Bg).clickable { picker.launch(arrayOf("text/x-vcard", "text/vcard", "text/directory", "*/*")) }.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Filled.Description, null, tint = C.Blue)
+            Spacer(Modifier.width(12.dp))
+            Text(if (fileUri == null) "Chọn file VCF (.vcf)" else fileLabel, color = C.Text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text(if (fileUri == null) "Chọn" else "Đổi file", color = C.Blue, fontSize = 13.sp)
+        }
+        found?.takeIf { it.isNotEmpty() }?.let { list ->
+            Gap(8)
+            Text("Tìm thấy ${list.size} liên hệ trong file", color = C.Green, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Gap(10)
+            SelectCard(
+                selected = toGmail, enabled = account != null,
+                title = "Gmail", subtitle = account ?: "Chưa có Gmail trên máy",
+                icon = Icons.Filled.Email, onClick = { toGmail = !toGmail }
+            )
+            Gap(8)
+            SelectCard(
+                selected = toSim, enabled = data.simInfo.available,
+                title = "SIM 1",
+                subtitle = if (!data.simInfo.available) "Không đọc được SIM"
+                else if (data.simInfo.maxRecords > 0) "Còn trống ${data.simInfo.free} / ${data.simInfo.maxRecords} chỗ" else "SIM đang dùng",
+                icon = Icons.Filled.SimCard, onClick = { toSim = !toSim }
+            )
+            Gap(10)
+            PrimaryButton("Nhập ${list.size} liên hệ", enabled = !busy && (toGmail || toSim), modifier = Modifier.fillMaxWidth()) {
+                busy = true; progress = 0f; result = null
+                val acc = if (toGmail) account else null
+                val sim = toSim
+                scope.launch {
+                    result = withContext(Dispatchers.IO) { data.backup.restore(list, acc, sim) { i, n -> progress = i.toFloat() / n } }
+                    busy = false
+                    onChanged()
+                }
+            }
+        }
+        if (busy) { Gap(10); LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth()) }
+        error?.let { Gap(8); Text(it, color = C.Red, fontSize = 13.sp) }
+    }
+
+    result?.let { r ->
+        CardBox(bg = C.GreenBg) {
+            Text("✔ Nhập xong (${r.total} liên hệ trong file)", color = C.Green, fontWeight = FontWeight.Bold)
+            Gap(8)
+            if (toGmail && account != null) {
+                ResultLine("Gmail: lưu mới", "${r.googleAdded} số")
+                ResultLine("Gmail: đã có sẵn, bỏ qua", "${r.googleSkipped} số")
+            }
+            if (toSim) {
+                ResultLine("SIM: lưu mới", "${r.simAdded} số")
+                ResultLine("SIM: đã có sẵn, bỏ qua", "${r.simSkipped} số")
+                if (r.simFailed.isNotEmpty()) ResultLine("SIM: chưa lưu được", "${r.simFailed.size} số", C.Orange)
             }
         }
     }

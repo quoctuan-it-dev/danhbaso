@@ -59,6 +59,22 @@ object Actions {
         start(ctx, Intent.createChooser(send, "Gửi danh thiếp qua…"), "Không mở được bảng chia sẻ")
     }
 
+    /** Gửi danh thiếp nhiều người một lượt. */
+    fun shareContacts(ctx: Context, list: List<com.quoctuan.danhbaso.data.ContactItem>) {
+        if (list.isEmpty()) return
+        val text = list.joinToString("\n\n") { c ->
+            buildString {
+                append("📇 ").append(c.name)
+                for (p in c.phones) append("\n📞 ").append(PhoneUtil.pretty(p))
+            }
+        }
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        start(ctx, Intent.createChooser(send, "Gửi danh thiếp qua…"), "Không mở được bảng chia sẻ")
+    }
+
     fun sms(ctx: Context, number: String) {
         start(ctx, Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$number")), "Không mở được app tin nhắn")
     }

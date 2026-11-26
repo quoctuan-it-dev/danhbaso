@@ -30,6 +30,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
@@ -128,6 +130,8 @@ sealed interface Route {
     data object Backup : Route
     data object Info : Route
     data object Update : Route
+    data object Duplicates : Route
+    data object CopySim : Route
 }
 
 enum class Tab { RECENTS, DIALPAD, CONTACTS }
@@ -296,6 +300,8 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
         Route.Backup -> BackupScreen(data, onBack = { pop() }, onChanged = refresh)
         Route.Info -> AppInfoScreen(onBack = { pop() })
         Route.Update -> UpdateScreen(onBack = { pop() })
+        Route.Duplicates -> com.quoctuan.danhbaso.ui.DuplicatesScreen(data, onBack = { pop() }, onChanged = refresh)
+        Route.CopySim -> com.quoctuan.danhbaso.ui.CopySimGmailScreen(data, onBack = { pop() }, onChanged = refresh)
     }
     if (showKeypadSize) com.quoctuan.danhbaso.ui.KeypadSizeDialog(data) { showKeypadSize = false }
     if (showTheme) com.quoctuan.danhbaso.ui.ThemeDialog(data) { showTheme = false }
@@ -321,6 +327,14 @@ private fun AppDrawer(data: AppData, onKeypadSize: () -> Unit, onTheme: () -> Un
             NavigationDrawerItem(
                 label = { Text("Sao lưu và khôi phục", fontWeight = FontWeight.SemiBold) },
                 icon = { Icon(Icons.Filled.Shield, null) }, selected = true, onClick = { onPick(Route.Backup) }, colors = colors
+            )
+            NavigationDrawerItem(
+                label = { Text("Dọn danh bạ trùng") }, icon = { Icon(Icons.Filled.CleaningServices, null) },
+                selected = false, onClick = { onPick(Route.Duplicates) }, colors = colors
+            )
+            NavigationDrawerItem(
+                label = { Text("Chép SIM ↔ Gmail") }, icon = { Icon(Icons.Filled.SwapHoriz, null) },
+                selected = false, onClick = { onPick(Route.CopySim) }, colors = colors
             )
             NavigationDrawerItem(
                 label = { Text("Cỡ bàn phím: " + listOf("Nhỏ", "Vừa", "Lớn")[data.keypadSize]) },

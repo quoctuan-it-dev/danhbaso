@@ -3,6 +3,11 @@ package com.quoctuan.danhbaso.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,7 +71,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Màn Danh bạ: vòng tròn Gmail góc trên, Yêu thích, danh sách theo chữ cái. */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ContactsScreen(
     data: AppData,
@@ -75,6 +80,8 @@ fun ContactsScreen(
     onAdd: () -> Unit,
     onChanged: () -> Unit,
 ) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     var query by rememberSaveable { mutableStateOf("") }
     var showAccounts by remember { mutableStateOf(false) }
     var showAddFav by remember { mutableStateOf(false) }
@@ -82,6 +89,14 @@ fun ContactsScreen(
     LaunchedEffect(focusSearch) { if (focusSearch) runCatching { focus.requestFocus() } }
 
     var showCreateGroup by remember { mutableStateOf(false) }
+
+    // Chọn nhiều: giữ tay vào một người để bắt đầu chọn
+    var selected by remember { mutableStateOf(setOf<Long>()) }
+    val selecting = selected.isNotEmpty()
+    var bulkDelete by remember { mutableStateOf(false) }
+    var bulkGroup by remember { mutableStateOf(false) }
+    fun toggle(id: Long) { selected = if (id in selected) selected - id else selected + id }
+    androidx.activity.compose.BackHandler(enabled = selecting) { selected = emptySet() }
     // Nhóm đang lọc (null = Tất cả)
     var groupSel by rememberSaveable { mutableStateOf<Long?>(null) }
     LaunchedEffect(data.groups) { if (groupSel != null && data.groups.none { it.id == groupSel }) groupSel = null }
@@ -105,7 +120,26 @@ fun ContactsScreen(
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
-            item {
+            if (selecting) item {
+                // Thanh "Đã chọn N" khi đang chọn nhiều
+                Row(
+                    Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp).fillMaxWidth().heightIn(min = 56.dp)
+                        .clip(RoundedCornerShape(28.dp)).background(C.BlueBg).glowBorder(RoundedCornerShape(28.dp)).padding(start = 4.dp, end = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.IconButton(onClick = { selected = emptySet() }) {
+                        Icon(Icons.Filled.Close, "Bỏ chọn", tint = C.Text)
+                    }
+                    Text("Đã chọn ${selected.size}", color = C.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text(
+                        if (selected.size == filtered.size) "Bỏ chọn hết" else "Chọn tất cả",
+                        color = C.Blue, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable {
+                            selected = if (selected.size == filtered.size) emptySet() else filtered.map { it.id }.toSet()
+                        }.padding(8.dp)
+                    )
+                }
+            } else item {
                 Row(
                     Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp).fillMaxWidth().heightIn(min = 56.dp)
                         .clip(RoundedCornerShape(28.dp)).background(C.Search).glowBorder(RoundedCornerShape(28.dp)).padding(start = 16.dp, end = 6.dp),
@@ -138,7 +172,7 @@ fun ContactsScreen(
                 item { GroupBar(data, groupSel, onSelect = { groupSel = it }, onCreate = { showCreateGroup = true }) }
                 groupSel?.let { gid -> item { GroupManageRow(data, gid, onDeleted = { groupSel = null }) } }
             }
-            if (query.isBlank() && groupSel == null) {
+            if (query.isBlank() && groupSel == null && !selecting) {
                 item {
                     Row(Modifier.fillMaxWidth().padding(20.dp, 8.dp, 20.dp, 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Yêu thích", color = C.Blue, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -189,9 +223,23 @@ fun ContactsScreen(
                         }
                         Row(
                             Modifier.padding(start = 16.dp, end = 16.dp, bottom = 3.dp).fillMaxWidth().clip(shape)
-                                .background(C.Card2).glowBorder(shape).clickable { onOpen(p) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                                .background(if (p.id in selected) C.BlueBg else C.Card2).glowBorder(shape)
+                                .combinedClickable(
+                                    onClick = { if (selecting) toggle(p.id) else onOpen(p) },
+                                    onLongClick = { toggle(p.id) }
+                                )
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            if (selecting) {
+                                val on = p.id in selected
+                                Box(
+                                    Modifier.size(26.dp).clip(CircleShape)
+                                        .then(if (on) Modifier.background(C.Green) else Modifier.border(2.dp, C.TickOff, CircleShape)),
+                                    contentAlignment = Alignment.Center
+                                ) { if (on) Icon(Icons.Filled.Check, null, tint = C.OnGreen, modifier = Modifier.size(18.dp)) }
+                                Spacer(Modifier.width(12.dp))
+                            }
                             Avatar(p.name, 42.dp, letter = p.letter)
                             Spacer(Modifier.width(16.dp))
                             Text(p.name, color = C.Text, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -200,13 +248,61 @@ fun ContactsScreen(
                 }
             }
         }
-        Box(
+        if (selecting) {
+            // Thanh hành động khi đang chọn nhiều
+            val chosen = list.filter { it.id in selected }
+            Row(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(C.Nav)
+                    .padding(vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                if (data.selectedAccount != null) BulkAction("Thêm vào nhóm", Icons.Filled.Groups, C.Blue) { bulkGroup = true }
+                BulkAction("Gửi danh thiếp", Icons.Filled.Share, C.Blue) { Actions.shareContacts(ctx, chosen) }
+                BulkAction("Xóa", Icons.Filled.Delete, C.Red) { bulkDelete = true }
+            }
+        } else Box(
             Modifier.align(Alignment.BottomEnd).padding(20.dp).size(62.dp)
                 .glow(RoundedCornerShape(20.dp), 16.dp).clip(RoundedCornerShape(20.dp)).background(C.accent).clickable(onClick = onAdd),
             contentAlignment = Alignment.Center
         ) { Icon(Icons.Filled.Add, "Thêm liên hệ mới", tint = C.OnBlue, modifier = Modifier.size(30.dp)) }
     }
 
+    if (bulkGroup) BulkGroupDialog(data, list.filter { it.id in selected }, onDismiss = { bulkGroup = false }) {
+        bulkGroup = false
+        selected = emptySet()
+    }
+    if (bulkDelete) {
+        val chosen = list.filter { it.id in selected }
+        AlertDialog(
+            onDismissRequest = { bulkDelete = false },
+            containerColor = C.Nav,
+            title = { Text("Xóa ${chosen.size} người?", color = C.Text) },
+            text = {
+                Text(
+                    "Xóa khỏi máy, Gmail và SIM: " + chosen.take(5).joinToString(", ") { it.name } +
+                        (if (chosen.size > 5) "… và ${chosen.size - 5} người khác" else "") + ". Không hoàn tác được.",
+                    color = C.Sub2
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    bulkDelete = false
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            for (c in chosen) {
+                                if (!c.simOnly) data.contactsRepo.deleteContact(c.id)
+                                if (c.inSim) c.phones.forEach { data.simRepo.deleteNumber(it) }
+                            }
+                        }
+                        Actions.toast(ctx, "Đã xóa ${chosen.size} người")
+                        selected = emptySet()
+                        onChanged()
+                    }
+                }) { Text("Xóa", color = C.Red, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { bulkDelete = false }) { Text("Hủy", color = C.Sub2) } }
+        )
+    }
     if (showCreateGroup) CreateGroupDialog(data, onDismiss = { showCreateGroup = false }) { groupSel = it }
     if (showAccounts) AccountSheet(data, onDismiss = { showAccounts = false }, onChanged = onChanged)
     if (showAddFav) AddFavoriteDialog(data, list.filter { !it.starred && !it.simOnly }, onDismiss = { showAddFav = false }, onChanged = onChanged)
@@ -300,4 +396,17 @@ private fun AddFavoriteDialog(data: AppData, candidates: List<ContactItem>, onDi
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Đóng") } }
     )
+}
+
+/** Nút trên thanh hành động khi chọn nhiều. */
+@Composable
+private fun BulkAction(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, onClick: () -> Unit) {
+    Column(
+        Modifier.clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(icon, null, tint = color, modifier = Modifier.size(26.dp))
+        Gap(4)
+        Text(text, color = color, fontSize = 13.sp)
+    }
 }
