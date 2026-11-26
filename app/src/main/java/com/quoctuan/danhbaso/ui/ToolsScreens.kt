@@ -12,13 +12,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
@@ -94,16 +94,32 @@ fun DuplicatesScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
     var skipped by remember { mutableStateOf(setOf<String>()) }
     var busy by remember { mutableStateOf(false) }
     var confirmAll by remember { mutableStateOf(false) }
+    // Lựa chọn của người dùng cho từng nhóm (khóa = groupId)
+    var nameSel by remember { mutableStateOf(mapOf<String, String>()) }     // tên đã chọn; "" = gõ tên khác
+    var customName by remember { mutableStateOf(mapOf<String, String>()) }
+    var phoneOff by remember { mutableStateOf(mapOf<String, Set<String>>()) } // các số (key) bị bỏ tick
     var confirmOne by remember { mutableStateOf<DupGroup?>(null) }
     val groups = remember(data.contacts, acc) { data.cleanup.find(data.contacts, acc) }
     val shown = groups.filter { groupId(it) !in skipped }
 
+    fun chosenName(g: DupGroup): String {
+        val id = groupId(g)
+        val n = nameSel[id] ?: g.keep.name
+        return if (n == "") (customName[id] ?: "").trim() else n
+    }
+    fun chosenPhones(g: DupGroup): List<String> {
+        val off = phoneOff[groupId(g)] ?: emptySet()
+        return allPhones(g).filter { PhoneUtil.key(it.first) !in off }.map { it.first }
+    }
+
     fun doMerge(list: List<DupGroup>) {
         busy = true
         scope.launch {
-            val ok = withContext(Dispatchers.IO) { list.count { data.cleanup.merge(it, acc) } }
+            val ok = withContext(Dispatchers.IO) {
+                list.count { data.cleanup.mergeCustom(it, chosenName(it), chosenPhones(it), acc) }
+            }
             busy = false
-            Actions.toast(ctx, if (ok == list.size) "Đã gộp $ok nhóm" else "Đã gộp $ok / ${list.size} nhóm, còn lại chưa gộp được")
+            Actions.toast(ctx, if (ok == list.size) "Đã gộp $ok nhóm" else "Đã gộp $ok / ${list.size} nhóm, còn lại chưa xử lý được")
             onChanged()
         }
     }
@@ -133,32 +149,48 @@ fun DuplicatesScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
                             (if (g.byName) "Trùng tên: " else "Trùng số: ") + "${g.label} (${g.items.size})",
                             color = C.Text, fontWeight = FontWeight.Bold, fontSize = 16.sp
                         )
-                        Gap(6)
-                        for (c in g.items) {
-                            Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Avatar(c.name, 34.dp, letter = c.letter)
-                                Spacer(Modifier.width(10.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        c.name + if (c.id == g.keep.id) "  · giữ lại" else "",
-                                        color = if (c.id == g.keep.id) C.Green else C.Text, fontSize = 15.sp
-                                    )
-                                    Text(
-                                        c.phones.joinToString(", ") { PhoneUtil.pretty(it) } + " · " + savedWhere(c),
-                                        color = C.Sub, fontSize = 13.sp
-                                    )
-                                }
+                        val id = groupId(g)
+                        // 1. Chọn tên giữ lại
+                        Gap(8)
+                        Text("1. Chọn tên giữ lại", color = C.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        val names = g.items.map { it.name }.distinct()
+                        val curName = nameSel[id] ?: g.keep.name
+                        for (n in names) ChoiceRow(radio = true, on = curName == n, title = n) { nameSel = nameSel + (id to n) }
+                        ChoiceRow(radio = true, on = curName == "", title = "Gõ tên khác…") { nameSel = nameSel + (id to "") }
+                        if (curName == "") {
+                            androidx.compose.material3.OutlinedTextField(
+                                value = customName[id] ?: "", onValueChange = { customName = customName + (id to it.take(60)) },
+                                singleLine = true, label = { Text("Tên mới") },
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
+                                ),
+                                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = C.Text, unfocusedTextColor = C.Text,
+                                    focusedBorderColor = C.Blue, unfocusedBorderColor = C.Border,
+                                ),
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                            )
+                        }
+                        // 2. Chọn số giữ lại
+                        Gap(10)
+                        Text("2. Chọn số giữ lại", color = C.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        val off = phoneOff[id] ?: emptySet()
+                        for ((p, owners) in allPhones(g)) {
+                            val k = PhoneUtil.key(p)
+                            ChoiceRow(radio = false, on = k !in off, title = PhoneUtil.pretty(p), sub = owners) {
+                                phoneOff = phoneOff + (id to (if (k in off) off - k else off + k))
                             }
                         }
+                        Gap(10)
+                        val nm = chosenName(g)
+                        val nPhones = chosenPhones(g).size
+                        PrimaryButton(
+                            if (nm.isEmpty()) "Hãy nhập tên" else if (nPhones == 0) "Hãy chọn ít nhất 1 số"
+                            else "Gộp thành\n\"$nm\" · $nPhones số",
+                            enabled = !busy && nm.isNotEmpty() && nPhones > 0, modifier = Modifier.fillMaxWidth()
+                        ) { confirmOne = g }
                         Gap(8)
-                        // Tên giữ lại nằm riêng một dòng cho dễ đọc; 2 nút cao bằng nhau
-                        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            PrimaryButton(
-                                if (g.byName) "Gộp thành 1" else "Gộp, giữ tên\n\"${g.keep.name}\"",
-                                enabled = !busy, modifier = Modifier.weight(1.4f).fillMaxHeight()
-                            ) { confirmOne = g }
-                            SecondaryButton("Bỏ qua", Modifier.weight(1f).fillMaxHeight()) { skipped = skipped + groupId(g) }
-                        }
+                        SecondaryButton("Không trùng, bỏ qua", Modifier.fillMaxWidth()) { skipped = skipped + id }
                     }
                 }
                 if (shown.size > 1) {
@@ -171,15 +203,24 @@ fun DuplicatesScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
     }
 
     confirmOne?.let { g ->
+        val nm = chosenName(g)
+        val ph = chosenPhones(g)
+        val dropped = allPhones(g).map { it.first }.filter { p -> ph.none { PhoneUtil.key(it) == PhoneUtil.key(p) } }
         ConfirmMergeDialog(
-            text = "Gộp ${g.items.size} mục thành \"${g.keep.name}\". Các số được chuyển sang người giữ lại, những mục còn lại sẽ bị xóa.",
+            title = "Gộp liên hệ?",
+            text = "Còn lại 1 người: \"$nm\" với " + ph.joinToString(", ") { PhoneUtil.pretty(it) } + "." +
+                (if (dropped.isNotEmpty()) " Bỏ số: " + dropped.joinToString(", ") { PhoneUtil.pretty(it) } + "." else "") +
+                " Không hoàn tác được.",
+            okText = "Gộp",
             onDismiss = { confirmOne = null },
             onOk = { confirmOne = null; doMerge(listOf(g)) }
         )
     }
     if (confirmAll) {
         ConfirmMergeDialog(
-            text = "Gộp cả ${shown.size} nhóm? Mỗi nhóm còn lại 1 người, giữ đủ các số. Không hoàn tác được – nên sao lưu trước.",
+            title = "Gộp tất cả?",
+            text = "Gộp cả ${shown.size} nhóm theo tên và số đang chọn ở từng nhóm? Không hoàn tác được – nên sao lưu trước.",
+            okText = "Gộp tất cả",
             onDismiss = { confirmAll = false },
             onOk = { confirmAll = false; doMerge(shown) }
         )
@@ -188,14 +229,58 @@ fun DuplicatesScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
 
 private fun groupId(g: DupGroup) = g.items.map { it.id }.sorted().joinToString(",")
 
+/** Mọi số trong nhóm (không lặp), kèm "của ai · lưu ở đâu". */
+private fun allPhones(g: DupGroup): List<Pair<String, String>> {
+    val seen = LinkedHashMap<String, Pair<String, MutableList<ContactItem>>>()
+    for (c in g.items) for (p in c.phones) {
+        val k = PhoneUtil.key(p)
+        seen.getOrPut(k) { p to ArrayList() }.second += c
+    }
+    return seen.values.map { (p, owners) ->
+        p to owners.distinctBy { it.id }.joinToString(", ") { it.name + " · " + savedWhere(it) }
+    }
+}
+
+/** Một dòng chọn: nút tròn (chọn 1) hoặc ô vuông (chọn nhiều). */
 @Composable
-private fun ConfirmMergeDialog(text: String, onDismiss: () -> Unit, onOk: () -> Unit) {
+private fun ChoiceRow(radio: Boolean, on: Boolean, title: String, sub: String? = null, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .background(if (on) C.GreenBg else androidx.compose.ui.graphics.Color.Transparent)
+            .clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val shape = if (radio) androidx.compose.foundation.shape.CircleShape else RoundedCornerShape(6.dp)
+        Box(
+            Modifier.size(22.dp).clip(shape)
+                .then(if (!radio && on) Modifier.background(C.Green) else Modifier.border(2.dp, if (on) C.Green else C.TickOff, shape)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (on) {
+                if (radio) Box(Modifier.size(11.dp).clip(shape).background(C.Green))
+                else androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Check, null, tint = C.OnGreen, modifier = Modifier.size(16.dp))
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = if (on) C.Text else C.Sub2, fontSize = 16.sp)
+            if (sub != null) Text(sub, color = C.Sub, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun ConfirmMergeDialog(title: String, text: String, okText: String, onDismiss: () -> Unit, onOk: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = C.Nav,
-        title = { Text("Gộp liên hệ?", color = C.Text) },
+        title = { Text(title, color = C.Text) },
         text = { Text(text, color = C.Sub2, fontSize = 15.sp) },
-        confirmButton = { TextButton(onClick = onOk) { Text("Gộp", color = C.Blue, fontWeight = FontWeight.Bold) } },
+        confirmButton = {
+            TextButton(onClick = onOk) {
+                Text(okText, color = if (okText.startsWith("Xóa")) C.Red else C.Blue, fontWeight = FontWeight.Bold)
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy", color = C.Sub2) } }
     )
 }

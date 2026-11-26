@@ -53,6 +53,49 @@ class BackupManager(
     }
 
     /** Mã hóa và ghi vào file người dùng đã chọn. */
+    /** Mã hóa toàn bộ danh bạ thành nội dung file .dbat. Trả về (nội dung, số liên hệ). */
+    fun encryptAll(all: List<ContactItem>, password: CharArray): Pair<ByteArray, Int> {
+        val list = collect(all)
+        val plain = toJson(list)
+        try {
+            return BackupCrypto.encrypt(plain, password) to list.size
+        } finally {
+            plain.fill(0)
+        }
+    }
+
+    /** Ghi nội dung đã mã hóa vào [uri]. */
+    fun writeBytes(uri: Uri, bytes: ByteArray) {
+        context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
+            ?: throw IllegalStateException("Không ghi được file")
+    }
+
+    /**
+     * Lưu vào Download/DanhBaSo của điện thoại (Android 10 trở lên, không cần hỏi chỗ lưu).
+     * Trả về Uri của file, hoặc null nếu máy cũ (khi đó dùng hộp chọn chỗ lưu).
+     */
+    fun saveToDownloads(name: String, bytes: ByteArray): Uri? {
+        if (android.os.Build.VERSION.SDK_INT < 29) return null
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream")
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/DanhBaSo")
+        }
+        val uri = context.contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw IllegalStateException("Không tạo được file trong Download")
+        writeBytes(uri, bytes)
+        return uri
+    }
+
+    /** Ghi file tạm (đã mã hóa) để gửi sang app Google Drive. Xóa file tạm cũ trước. */
+    fun tempShareFile(name: String, bytes: ByteArray): Uri {
+        val dir = java.io.File(context.cacheDir, "share").apply { mkdirs() }
+        dir.listFiles()?.forEach { it.delete() }
+        val f = java.io.File(dir, name)
+        f.writeBytes(bytes)
+        return androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", f)
+    }
+
     fun writeBackup(uri: Uri, all: List<ContactItem>, password: CharArray): Int {
         val list = collect(all)
         val plain = toJson(list)

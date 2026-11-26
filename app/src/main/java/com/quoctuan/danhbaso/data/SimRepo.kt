@@ -107,6 +107,29 @@ class SimRepo(private val context: Context) {
         return list
     }
 
+    /** Số byte tối đa của ô tên trong SIM đang lắp (thường 14). */
+    fun nameLimit(): Int = info().nameMaxLength.takeIf { it > 0 } ?: 14
+
+    /** Số byte tên [s] chiếm trong SIM (có dấu = khoảng 2 byte mỗi chữ). */
+    fun encodedLength(s: String): Int {
+        if (Build.VERSION.SDK_INT >= 31) {
+            try { return SimPhonebookContract.SimRecords.getEncodedNameLength(cr, s) } catch (_: Exception) { }
+        }
+        // Ước lượng: toàn chữ không dấu = 1 byte/chữ; có chữ có dấu = 1 + 2 byte/chữ (UCS-2)
+        return if (s.all { it.code < 128 }) s.length else 1 + s.length * 2
+    }
+
+    /**
+     * Tên sẽ lưu vào SIM.
+     * [keepAccents] = true: giữ dấu, cắt bớt cho vừa; false: bỏ dấu rồi cắt (chứa được gấp đôi chữ).
+     */
+    fun previewName(name: String, keepAccents: Boolean): String {
+        val limit = nameLimit()
+        var n = (if (keepAccents) name else TextUtil.removeDiacritics(name)).trim()
+        while (n.isNotEmpty() && encodedLength(n) > limit) n = n.dropLast(1)
+        return n.trim()
+    }
+
     /** Ghi một số vào SIM. Tên quá dài sẽ được bỏ dấu / rút gọn. */
     fun insert(name: String, number: String): SimWriteResult {
         val num = PhoneUtil.local(number)
@@ -120,7 +143,7 @@ class SimRepo(private val context: Context) {
             }
         }
         return try {
-            val fitted = TextUtil.removeDiacritics(name).take(14).trim()
+            val fitted = if (encodedLength(name) <= 14) name else TextUtil.removeDiacritics(name).take(14).trim()
             val v = ContentValues().apply {
                 put("tag", fitted)
                 put("number", num)

@@ -32,7 +32,8 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -42,7 +43,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -156,29 +156,74 @@ private fun BackupTab(data: AppData) {
     var pw1 by remember { mutableStateOf("") }
     var pw2 by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    var savedUri by remember { mutableStateOf<Uri?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var done by remember { mutableStateOf<String?>(null) }
     val strength = BackupCrypto.strength(pw1)
-    val fileName = "danhba_" + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) + ".dbat"
+    val fileName = "danhba_" + SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.US).format(Date()) + ".dbat"
+    // Nơi lưu: điện thoại / Google Drive (chọn một hoặc cả hai)
+    var toPhone by remember { mutableStateOf(true) }
+    var toDrive by remember { mutableStateOf(true) }
+    // Nội dung đã mã hóa, chờ lưu bằng hộp chọn chỗ (máy Android 9 trở xuống)
+    var pending by remember { mutableStateOf<Pair<ByteArray, Int>?>(null) }
 
+    fun finish(n: Int, places: List<String>) {
+        data.markBackup(fileName)
+        pw1 = ""; pw2 = ""
+        done = "Đã sao lưu $n liên hệ" + if (places.isNotEmpty()) " vào " + places.joinToString(" và ") else ""
+        Actions.toast(ctx, done!!)
+    }
+
+    suspend fun sendDrive(bytes: ByteArray) {
+        val uri = withContext(Dispatchers.IO) { data.backup.tempShareFile(fileName, bytes) }
+        Actions.sendToDrive(ctx, uri)
+    }
+
+    // Máy cũ (Android 9-): chọn chỗ lưu trong điện thoại
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        busy = true
-        error = null
-        val password = pw1.toCharArray()
+        val p = pending ?: return@rememberLauncherForActivityResult
+        pending = null
         scope.launch {
             try {
-                val n = withContext(Dispatchers.IO) { data.backup.writeBackup(uri, data.contacts, password) }
-                data.markBackup(fileName)
-                savedUri = uri
-                pw1 = ""
-                pw2 = ""
-                Actions.toast(ctx, "Đã sao lưu $n liên hệ")
+                val places = ArrayList<String>()
+                if (uri != null) {
+                    withContext(Dispatchers.IO) { data.backup.writeBytes(uri, p.first) }
+                    places += "điện thoại"
+                }
+                if (toDrive) { sendDrive(p.first); places += "Google Drive" }
+                if (places.isNotEmpty()) finish(p.second, places)
             } catch (e: Exception) {
                 error = "Không lưu được file: ${e.message ?: "lỗi không rõ"}"
             } finally {
-                password.fill(' ')
                 busy = false
+            }
+        }
+    }
+
+    fun startBackup() {
+        busy = true; error = null; done = null
+        val password = pw1.toCharArray()
+        scope.launch {
+            try {
+                val enc = withContext(Dispatchers.IO) { data.backup.encryptAll(data.contacts, password) }
+                val places = ArrayList<String>()
+                if (toPhone) {
+                    val uri = withContext(Dispatchers.IO) { data.backup.saveToDownloads(fileName, enc.first) }
+                    if (uri == null) {
+                        // Máy cũ: hỏi chỗ lưu, phần Drive làm tiếp sau khi lưu xong
+                        pending = enc
+                        launcher.launch(fileName)
+                        return@launch
+                    }
+                    places += "điện thoại (Download/DanhBaSo)"
+                }
+                if (toDrive) { sendDrive(enc.first); places += "Google Drive" }
+                finish(enc.second, places)
+                busy = false
+            } catch (e: Exception) {
+                error = "Không lưu được file: ${e.message ?: "lỗi không rõ"}"
+                busy = false
+            } finally {
+                password.fill(' ')
             }
         }
     }
@@ -207,9 +252,23 @@ private fun BackupTab(data: AppData) {
         Gap(8)
         Text("Quên mật khẩu là không mở được file. Hãy ghi mật khẩu ra giấy và cất kỹ.", color = C.Orange, fontSize = 12.sp)
         Gap(12)
+        Text("Lưu file sao lưu vào:", color = C.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Gap(8)
+        SelectCard(
+            selected = toPhone, enabled = true, title = "Trong điện thoại",
+            subtitle = "Thư mục Download/DanhBaSo",
+            icon = Icons.Filled.PhoneAndroid, onClick = { toPhone = !toPhone }
+        )
+        Gap(8)
+        SelectCard(
+            selected = toDrive, enabled = true, title = "Google Drive",
+            subtitle = "Gửi sang app Drive để lưu – app Danh bạ số vẫn không dùng mạng",
+            icon = Icons.Filled.Cloud, onClick = { toDrive = !toDrive }
+        )
+        Gap(12)
         Button(
-            onClick = { launcher.launch(fileName) },
-            enabled = !busy && pw1.length >= 8 && pw1 == pw2 && data.contacts.isNotEmpty(),
+            onClick = { startBackup() },
+            enabled = !busy && pw1.length >= 8 && pw1 == pw2 && data.contacts.isNotEmpty() && (toPhone || toDrive),
             modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = C.Blue, contentColor = C.OnBlue)
         ) {
@@ -224,16 +283,9 @@ private fun BackupTab(data: AppData) {
             }
         }
         Gap(6)
-        Text("Ở bước chọn nơi lưu, bạn có thể chọn thẳng Google Drive.", color = C.Sub, fontSize = 12.sp)
+        Text("File được mã hóa trước khi rời app. Chọn cả 2 = có 2 bản, mất máy vẫn còn bản trên Drive.", color = C.Sub, fontSize = 12.sp)
         error?.let { Gap(6); Text(it, color = C.Red, fontSize = 13.sp) }
-        savedUri?.let { uri ->
-            Gap(10)
-            OutlinedButton(onClick = { Actions.shareFile(ctx, uri) }, modifier = Modifier.fillMaxWidth().height(44.dp), shape = RoundedCornerShape(14.dp)) {
-                Icon(Icons.Filled.Share, null, tint = C.Text)
-                Spacer(Modifier.width(8.dp))
-                Text("Chia sẻ lên Google Drive", color = C.Text)
-            }
-        }
+        done?.let { Gap(6); Text("✔ $it", color = C.Green, fontSize = 13.sp) }
         Gap(10)
         val last = data.lastBackup
         Text(
@@ -276,7 +328,7 @@ private fun RestoreTab(data: AppData, onChanged: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var result by remember { mutableStateOf<RestoreResult?>(null) }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    fun picked(uri: Uri?) {
         if (uri != null) {
             fileUri = uri
             fileLabel = describeFile(ctx, uri)
@@ -284,16 +336,41 @@ private fun RestoreTab(data: AppData, onChanged: () -> Unit) {
             error = null
         }
     }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { picked(it) }
+    // Mở thẳng app Google Drive để chọn file
+    val drivePicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        picked(r.data?.data)
+    }
+    fun openDrive() {
+        val i = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+            type = "*/*"
+            addCategory(android.content.Intent.CATEGORY_OPENABLE)
+            setPackage(Actions.DRIVE_PACKAGE)
+        }
+        try {
+            drivePicker.launch(i)
+        } catch (e: Exception) {
+            Actions.toast(ctx, "Không mở được Google Drive – chọn mục Drive trong danh sách")
+            picker.launch(arrayOf("*/*"))
+        }
+    }
 
     CardBox {
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(C.Bg).clickable { picker.launch(arrayOf("*/*")) }.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Filled.Description, null, tint = C.Blue)
-            Spacer(Modifier.width(12.dp))
-            Text(if (fileUri == null) "Chọn file sao lưu (.dbat)" else fileLabel, color = C.Text, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            Text(if (fileUri == null) "Chọn" else "Đổi file", color = C.Blue, fontSize = 13.sp)
+        Text("Lấy file sao lưu (.dbat) từ:", color = C.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Gap(8)
+        SourceRow(Icons.Filled.PhoneAndroid, "Trong điện thoại", "Download/DanhBaSo hoặc thư mục khác") { picker.launch(arrayOf("*/*")) }
+        Gap(8)
+        SourceRow(Icons.Filled.Cloud, "Google Drive", "Mở thẳng Drive để chọn file") { openDrive() }
+        fileUri?.let {
+            Gap(10)
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(C.GreenBg).padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.Description, null, tint = C.Green)
+                Spacer(Modifier.width(12.dp))
+                Text(fileLabel, color = C.Text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            }
         }
         Gap(10)
         PasswordField(pw, { pw = it }, "Mật khẩu file")
@@ -520,6 +597,23 @@ private fun VcfTab(data: AppData, onChanged: () -> Unit) {
                 if (r.simFailed.isNotEmpty()) ResultLine("SIM: chưa lưu được", "${r.simFailed.size} số", C.Orange)
             }
         }
+    }
+}
+
+@Composable
+private fun SourceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, sub: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.Bg)
+            .border(1.dp, C.Border, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = C.Blue, modifier = Modifier.size(26.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = C.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(sub, color = C.Sub, fontSize = 12.sp)
+        }
+        Text("Chọn", color = C.Blue, fontSize = 13.sp)
     }
 }
 

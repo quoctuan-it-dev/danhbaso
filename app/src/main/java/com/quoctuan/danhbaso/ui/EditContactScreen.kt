@@ -34,6 +34,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.border
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -81,6 +84,23 @@ fun EditContactScreen(
     var toGmail by remember { mutableStateOf(if (existing == null) account != null else wasInGmail) }
     var saving by remember { mutableStateOf(false) }
 
+    // Tên lưu trong SIM: mặc định giữ dấu, tự cắt cho vừa; người dùng có thể tự sửa
+    var keepAccents by remember { mutableStateOf(true) }
+    var simCustom by remember { mutableStateOf<String?>(null) }
+    var simAuto by remember { mutableStateOf("") }
+    var simUsed by remember { mutableIntStateOf(0) }
+    var simLimit by remember { mutableIntStateOf(14) }
+    val simName = (simCustom ?: simAuto).trim()
+    LaunchedEffect(name, keepAccents, toSim) {
+        if (!toSim) return@LaunchedEffect
+        simAuto = withContext(Dispatchers.IO) { data.simRepo.previewName(name.trim(), keepAccents) }
+    }
+    LaunchedEffect(simName, toSim) {
+        if (!toSim) return@LaunchedEffect
+        val (u, l) = withContext(Dispatchers.IO) { data.simRepo.encodedLength(simName) to data.simRepo.nameLimit() }
+        simUsed = u; simLimit = l
+    }
+
     val canSave = !saving && name.isNotBlank() && PhoneUtil.local(phone).length >= 3 &&
         (toSim || toGmail || (existing != null && !existing.simOnly))
 
@@ -90,7 +110,7 @@ fun EditContactScreen(
     fun doSaveNormal() {
         saving = true
         scope.launch {
-            val msg = withContext(Dispatchers.IO) { doSave(data, existing, name.trim(), phone.trim(), toSim, toGmail, wasInSim, wasInGmail) }
+            val msg = withContext(Dispatchers.IO) { doSave(data, existing, name.trim(), phone.trim(), toSim, toGmail, wasInSim, wasInGmail, simName.ifEmpty { name.trim() }) }
             saving = false
             Actions.toast(ctx, msg)
             onSaved()
@@ -188,8 +208,14 @@ fun EditContactScreen(
             if (!toSim && !toGmail && (existing == null || existing.simOnly)) {
                 Text("Hãy chọn ít nhất một nơi để lưu", color = C.Orange, fontSize = 13.sp, modifier = Modifier.fillMaxWidth())
             }
-            if (toSim) {
-                Text("SIM chỉ lưu được tên ngắn (khoảng 14 ký tự, có thể mất dấu). Gmail giữ nguyên tên đầy đủ.", color = C.Sub, fontSize = 12.sp)
+            if (toSim && name.isNotBlank()) {
+                SimNameBox(
+                    full = name.trim(), simName = simName, used = simUsed, limit = simLimit,
+                    custom = simCustom != null, keepAccents = keepAccents,
+                    onEdit = { simCustom = it },
+                    onAccents = { keepAccents = it; simCustom = null },
+                    gmail = toGmail,
+                )
             }
         }
     }
@@ -203,6 +229,77 @@ fun EditContactScreen(
             onCancel = { dup = null },
         )
     }
+}
+
+/**
+ * Ô "Trong SIM sẽ lưu thành": xem trước tên trong SIM, bộ đếm, bấm để tự sửa,
+ * chọn Giữ dấu (~6-7 chữ) / Bỏ dấu (~14 chữ). Chỉ đổi tên trong SIM, Gmail vẫn giữ tên đầy đủ.
+ */
+@Composable
+private fun SimNameBox(
+    full: String, simName: String, used: Int, limit: Int, custom: Boolean, keepAccents: Boolean,
+    onEdit: (String) -> Unit, onAccents: (Boolean) -> Unit, gmail: Boolean,
+) {
+    var editing by remember { mutableStateOf(false) }
+    val cut = !custom && simName != full
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.Card)
+            .border(1.dp, if (cut) C.Orange else C.Border, RoundedCornerShape(14.dp)).padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Trong SIM sẽ lưu thành:", color = C.Sub, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            Text("$used/$limit", color = if (used > limit) C.Red else C.Sub, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(4.dp))
+        if (editing) {
+            OutlinedTextField(
+                value = simName, onValueChange = { onEdit(it.take(30)) }, singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = C.Text, unfocusedTextColor = C.Text,
+                    focusedBorderColor = C.Blue, unfocusedBorderColor = C.Border,
+                ),
+                trailingIcon = {
+                    Text("Xong", color = C.Blue, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { editing = false }.padding(8.dp))
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+        } else {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(C.Bg).clickable { editing = true }.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(simName.ifEmpty { "—" }, color = C.Text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text("Sửa", color = C.Blue, fontSize = 13.sp)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            AccentChip("Giữ dấu", keepAccents, Modifier.weight(1f)) { onAccents(true) }
+            AccentChip("Bỏ dấu · chứa nhiều chữ hơn", !keepAccents, Modifier.weight(1.6f)) { onAccents(false) }
+        }
+        Spacer(Modifier.height(6.dp))
+        when {
+            used > limit -> Text("Tên quá dài, SIM sẽ cắt bớt cho vừa.", color = C.Red, fontSize = 12.sp)
+            custom -> Text("✔ Tên trong SIM do bạn đặt.", color = C.Green, fontSize = 12.sp)
+            cut -> Text("⚠️ Tên dài nên bị cắt. Bấm vào tên để tự đặt tên ngắn, hoặc chọn \"Bỏ dấu\".", color = C.Orange, fontSize = 12.sp)
+        }
+        Text(
+            if (gmail) "Chỉ đổi tên trong SIM. Gmail và máy này vẫn hiện tên đầy đủ: $full"
+            else "Chưa chọn Gmail nên máy này sẽ hiện tên trong SIM.",
+            color = C.Sub, fontSize = 12.sp
+        )
+    }
+}
+
+@Composable
+private fun AccentChip(text: String, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.clip(RoundedCornerShape(10.dp))
+            .background(if (on) C.BlueBg else C.Bg)
+            .border(1.dp, if (on) C.Blue else C.Border, RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 6.dp),
+        contentAlignment = Alignment.Center
+    ) { Text(text, color = if (on) C.Blue else C.Sub2, fontSize = 12.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, maxLines = 1) }
 }
 
 /** Cửa sổ hỏi khi lưu số mới với tên đã có. */
@@ -275,11 +372,12 @@ private fun saveIntoExisting(data: AppData, c: ContactItem, phone: String, repla
 private fun doSave(
     data: AppData, existing: ContactItem?, name: String, phone: String,
     toSim: Boolean, toGmail: Boolean, wasInSim: Boolean, wasInGmail: Boolean,
+    simName: String = name,
 ): String {
     val account = data.selectedAccount
     val notes = ArrayList<String>()
     fun simInsert() {
-        when (data.simRepo.insert(name, phone)) {
+        when (data.simRepo.insert(simName, phone)) {
             SimWriteResult.OK -> notes += "SIM"
             SimWriteResult.SHORTENED -> notes += "SIM (tên rút gọn)"
             SimWriteResult.FULL -> notes += "SIM đầy, chưa lưu"

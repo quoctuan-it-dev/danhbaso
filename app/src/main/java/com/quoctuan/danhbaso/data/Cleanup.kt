@@ -75,26 +75,28 @@ class Cleanup(private val contacts: ContactsRepo, private val sim: SimRepo) {
     }
 
     /**
-     * Gộp một nhóm trùng thành 1 người: chép các số còn thiếu sang người giữ lại,
-     * giữ dấu Yêu thích, rồi xóa những người còn lại. Trả về true nếu thành công.
+     * Gộp theo lựa chọn của người dùng: một [name] và các số [phones] được giữ.
+     * Người giữ lại = người có đúng tên đã chọn (nếu có), không thì người app tự chọn.
+     * Đổi tên nếu cần, thêm số còn thiếu, bỏ số không chọn, rồi xóa những người còn lại.
      */
-    fun merge(group: DupGroup, account: String?): Boolean {
-        val keep = group.keep
-        val keys = keep.phones.map { PhoneUtil.key(it) }.toMutableSet()
-        var allOk = true
-        for (o in group.items) {
-            if (o.id == keep.id) continue
-            var ok = true
-            for (p in o.phones) {
-                val k = PhoneUtil.key(p)
-                if (k in keys) continue
-                if (contacts.addPhoneToContact(keep.id, p, account)) keys += k else ok = false
-            }
-            if (o.starred && !keep.starred) contacts.setStarred(keep.id, true)
-            // Chỉ xóa người kia khi các số đã chép sang đủ
-            if (ok) contacts.deleteContact(o.id) else allOk = false
-        }
-        return allOk
+    fun mergeCustom(group: DupGroup, name: String, phones: List<String>, account: String?): Boolean {
+        if (phones.isEmpty()) return false
+        val keep = group.items.firstOrNull { it.name == name } ?: group.keep
+        val wanted = phones.associateBy { PhoneUtil.key(it) }
+        var ok = true
+        // 1) Tên
+        if (keep.name != name) ok = contacts.updateNameAndNumber(keep.id, name, keep.firstPhone, keep.firstPhone) && ok
+        // 2) Bỏ số không chọn của người giữ lại
+        for (p in keep.phones) if (PhoneUtil.key(p) !in wanted) ok = contacts.removePhone(keep.id, p) && ok
+        // 3) Thêm số đã chọn mà người giữ lại chưa có
+        val have = keep.phones.map { PhoneUtil.key(it) }.toSet()
+        for ((k, p) in wanted) if (k !in have) ok = contacts.addPhoneToContact(keep.id, p, account) && ok
+        // 4) Giữ Yêu thích, rồi xóa người còn lại (chỉ khi các bước trên thành công)
+        if (!ok) return false
+        val others = group.items.filter { it.id != keep.id }
+        if (others.any { it.starred } && !keep.starred) contacts.setStarred(keep.id, true)
+        for (o in others) contacts.deleteContact(o.id)
+        return true
     }
 
     /** Số trong SIM mà Gmail [account] chưa có. */

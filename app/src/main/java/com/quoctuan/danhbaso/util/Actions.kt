@@ -127,6 +127,30 @@ object Actions {
     }
 
     /** Chia sẻ file sao lưu (chọn Google Drive để lưu lên Drive). */
+    const val DRIVE_PACKAGE = "com.google.android.apps.docs"
+
+    fun hasDrive(ctx: Context): Boolean = try {
+        ctx.packageManager.getPackageInfo(DRIVE_PACKAGE, 0); true
+    } catch (e: Exception) { false }
+
+    /** Gửi file (đã mã hóa) thẳng sang app Google Drive; không có Drive thì mở bảng chia sẻ. */
+    fun sendToDrive(ctx: Context, uri: Uri) {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "application/octet-stream"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        if (hasDrive(ctx)) {
+            try {
+                ctx.startActivity(Intent(send).setPackage(DRIVE_PACKAGE))
+                return
+            } catch (_: Exception) {
+            }
+        }
+        toast(ctx, "Máy chưa có app Google Drive – chọn nơi lưu khác")
+        start(ctx, Intent.createChooser(send, "Lưu file sao lưu vào…"), "Không chia sẻ được file")
+    }
+
     fun shareFile(ctx: Context, uri: Uri) {
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "application/octet-stream"

@@ -208,6 +208,22 @@ class ContactsRepo(private val context: Context) {
     }
 
     /** Đổi tên và số (số cũ [oldNumber] được thay bằng [newNumber]) ở mọi bản của người này. */
+    /** Xóa một số điện thoại khỏi liên hệ (mọi bản ghi Gmail / máy của người đó). */
+    fun removePhone(contactId: Long, number: String): Boolean = try {
+        val key = PhoneUtil.key(number)
+        val ids = ArrayList<Long>()
+        cr.query(
+            Data.CONTENT_URI, arrayOf(Data._ID, Phone.NUMBER),
+            "${Data.CONTACT_ID}=? AND ${Data.MIMETYPE}=?",
+            arrayOf(contactId.toString(), Phone.CONTENT_ITEM_TYPE), null
+        )?.use { c -> while (c.moveToNext()) if (PhoneUtil.key(c.getString(1) ?: "") == key) ids += c.getLong(0) }
+        var n = 0
+        for (id in ids) n += cr.delete(Data.CONTENT_URI, "${Data._ID}=?", arrayOf(id.toString()))
+        n > 0
+    } catch (e: Exception) {
+        false
+    }
+
     fun updateNameAndNumber(contactId: Long, newName: String, oldNumber: String, newNumber: String): Boolean {
         return try {
             val rawIds = ArrayList<Long>()
