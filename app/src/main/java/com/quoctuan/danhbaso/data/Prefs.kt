@@ -27,6 +27,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("theme", 0)
         set(v) = sp.edit { putInt("theme", v) }
 
+    /** Các cảnh báo bảo mật người dùng chọn "Không hỏi lại". */
+    var ignoredSecurity: Set<String>
+        get() = sp.getStringSet("sec_ignored", emptySet())?.toSet() ?: emptySet()
+        set(v) = sp.edit { putStringSet("sec_ignored", v) }
+
     /** Sáng / Tối: 0 Tự động theo điện thoại, 1 Luôn sáng, 2 Luôn tối. */
     var darkMode: Int
         get() = sp.getInt("dark_mode", 0)

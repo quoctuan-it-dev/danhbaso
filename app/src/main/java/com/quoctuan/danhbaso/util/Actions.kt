@@ -40,6 +40,13 @@ object Actions {
     }
 
     /** Sao chép số điện thoại vào bộ nhớ tạm để dán sang Zalo, tin nhắn... */
+    /** Sao chép một đoạn chữ bất kỳ. */
+    fun copyText(ctx: Context, text: String, msg: String) {
+        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+        cm.setPrimaryClip(ClipData.newPlainText("Danh bạ số", text))
+        if (android.os.Build.VERSION.SDK_INT < 33) toast(ctx, msg)
+    }
+
     fun copy(ctx: Context, number: String) {
         val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
         cm.setPrimaryClip(ClipData.newPlainText("Số điện thoại", PhoneUtil.local(number)))

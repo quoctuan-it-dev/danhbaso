@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
@@ -100,7 +101,10 @@ class MainActivity : ComponentActivity() {
                     androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density, d.fontScale * data.fontFactor)
                 ) {
                     Box(Modifier.fillMaxSize().background(C.background).safeDrawingPadding()) {
-                        Root(data)
+                        // Kiểm tra bảo mật mỗi lần mở app, qua rồi mới vào app
+                        var secured by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+                        if (secured) Root(data)
+                        else com.quoctuan.danhbaso.ui.SecurityGate(data) { secured = true }
                     }
                 }
             }
@@ -130,6 +134,7 @@ sealed interface Route {
     data object Update : Route
     data object Duplicates : Route
     data object CopySim : Route
+    data object Security : Route
 }
 
 enum class Tab { RECENTS, DIALPAD, CONTACTS }
@@ -300,6 +305,7 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
         Route.Update -> UpdateScreen(onBack = { pop() })
         Route.Duplicates -> com.quoctuan.danhbaso.ui.DuplicatesScreen(data, onBack = { pop() }, onChanged = refresh)
         Route.CopySim -> com.quoctuan.danhbaso.ui.CopySimGmailScreen(data, onBack = { pop() }, onChanged = refresh)
+        Route.Security -> com.quoctuan.danhbaso.ui.SecurityScreen(data, onBack = { pop() })
     }
     if (showKeypadSize) com.quoctuan.danhbaso.ui.KeypadSizeDialog(data) { showKeypadSize = false }
     if (showTheme) com.quoctuan.danhbaso.ui.ThemeDialog(data) { showTheme = false }
@@ -333,6 +339,10 @@ private fun AppDrawer(data: AppData, onKeypadSize: () -> Unit, onTheme: () -> Un
             NavigationDrawerItem(
                 label = { Text("Chép SIM ↔ Gmail") }, icon = { Icon(Icons.Filled.SwapHoriz, null) },
                 selected = false, onClick = { onPick(Route.CopySim) }, colors = colors
+            )
+            NavigationDrawerItem(
+                label = { Text("Kiểm tra bảo mật") }, icon = { Icon(Icons.Filled.VerifiedUser, null) },
+                selected = false, onClick = { onPick(Route.Security) }, colors = colors
             )
             NavigationDrawerItem(
                 label = { Text("Cỡ bàn phím: " + listOf("Nhỏ", "Vừa", "Lớn")[data.keypadSize]) },

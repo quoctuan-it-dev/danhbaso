@@ -22,6 +22,10 @@
     <!-- Để biết máy có cài Google Drive không -->
     <queries>
         <package android:name="com.google.android.apps.docs" />
+        <!-- Để đọc tên các app đang bật Trợ năng (kiểm tra bảo mật) -->
+        <intent>
+            <action android:name="android.accessibilityservice.AccessibilityService" />
+        </intent>
     </queries>
 
     <application

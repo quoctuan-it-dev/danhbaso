@@ -266,9 +266,17 @@ private fun BackupTab(data: AppData) {
             icon = Icons.Filled.Cloud, onClick = { toDrive = !toDrive }
         )
         Gap(12)
+        val rooted = remember { com.quoctuan.danhbaso.data.SecurityCheck.isRooted() }
+        if (rooted) {
+            Text(
+                "⛔ Máy đã bị root: không cho tạo file sao lưu vì mật khẩu có thể bị đọc trộm. Hãy sao lưu trên máy khác.",
+                color = C.Red, fontSize = 13.sp
+            )
+            Gap(8)
+        }
         Button(
             onClick = { startBackup() },
-            enabled = !busy && pw1.length >= 8 && pw1 == pw2 && data.contacts.isNotEmpty() && (toPhone || toDrive),
+            enabled = !rooted && !busy && pw1.length >= 8 && pw1 == pw2 && data.contacts.isNotEmpty() && (toPhone || toDrive),
             modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = C.Blue, contentColor = C.OnBlue)
         ) {
