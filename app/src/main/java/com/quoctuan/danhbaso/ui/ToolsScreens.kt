@@ -18,7 +18,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.SimCard
+import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
@@ -34,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,7 +47,6 @@ import com.quoctuan.danhbaso.data.ContactItem
 import com.quoctuan.danhbaso.data.CopyResult
 import com.quoctuan.danhbaso.data.DupGroup
 import com.quoctuan.danhbaso.data.SimRecord
-import com.quoctuan.danhbaso.util.Actions
 import com.quoctuan.danhbaso.util.PhoneUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -88,10 +90,14 @@ private fun savedWhere(c: ContactItem): String = buildList {
 /** Màn "Dọn danh bạ trùng": tìm người trùng tên / trùng số và gộp lại. */
 @Composable
 fun DuplicatesScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
-    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val acc = data.selectedAccount
-    var skipped by remember { mutableStateOf(setOf<String>()) }
+    // Nhóm đã bấm "Không trùng, bỏ qua" – lưu lại, mở lại / cập nhật app không hiện nữa
+    var ignored by remember { mutableStateOf(data.prefs.ignoredDupes) }
+    var showHidden by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<MergeSummary?>(null) }
+    var simRecs by remember { mutableStateOf<List<SimRecord>>(emptyList()) }
+    LaunchedEffect(data.contacts) { simRecs = withContext(Dispatchers.IO) { data.cleanup.simRecords() } }
     var busy by remember { mutableStateOf(false) }
     var confirmAll by remember { mutableStateOf(false) }
     // Lựa chọn của người dùng cho từng nhóm (khóa = groupId)
@@ -100,7 +106,15 @@ fun DuplicatesScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
     var phoneOff by remember { mutableStateOf(mapOf<String, Set<String>>()) } // các số (key) bị bỏ tick
     var confirmOne by remember { mutableStateOf<DupGroup?>(null) }
     val groups = remember(data.contacts, acc) { data.cleanup.find(data.contacts, acc) }
-    val shown = groups.filter { groupId(it) !in skipped }
+    val shown = groups.filter { groupId(it) !in ignored }
+    val hidden = groups.filter { groupId(it) in ignored }
+    val display = if (showHidden) groups else shown
+    fun setIgnored(v: Set<String>) {
+        // Chỉ giữ các nhóm còn tồn tại để danh sách không phình to
+        val alive = groups.map { groupId(it) }.toSet()
+        ignored = v.filter { it in alive }.toSet()
+        data.prefs.ignoredDupes = ignored
+    }
 
     fun chosenName(g: DupGroup): String {
         val id = groupId(g)
@@ -115,11 +129,14 @@ fun DuplicatesScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
     fun doMerge(list: List<DupGroup>) {
         busy = true
         scope.launch {
-            val ok = withContext(Dispatchers.IO) {
-                list.count { data.cleanup.mergeCustom(it, chosenName(it), chosenPhones(it), acc) }
+            val res = withContext(Dispatchers.IO) {
+                list.map { data.cleanup.mergeCustom(it, chosenName(it), chosenPhones(it), acc) }
             }
             busy = false
-            Actions.toast(ctx, if (ok == list.size) "Đã gộp $ok nhóm" else "Đã gộp $ok / ${list.size} nhóm, còn lại chưa xử lý được")
+            result = MergeSummary(
+                merged = res.count { it.ok }, total = list.size,
+                simCleaned = res.sumOf { it.simCleaned }, failed = res.flatMap { it.failed }
+            )
             onChanged()
         }
     }
@@ -130,9 +147,10 @@ fun DuplicatesScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            result?.let { r -> MergeResultCards(r) { result = null } }
             if (!data.loaded) {
                 Text("Đang đọc danh bạ…", color = C.Sub2)
-            } else if (shown.isEmpty()) {
+            } else if (display.isEmpty()) {
                 CardBox(bg = C.GreenBg) {
                     Text("✔ Danh bạ không còn ai trùng", color = C.Green, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                     Gap(4)
@@ -140,10 +158,10 @@ fun DuplicatesScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
                 }
             } else {
                 Text(
-                    "Tìm thấy ${shown.size} nhóm trùng. Gộp = thành 1 người, giữ đủ các số. Nên sao lưu trước khi dọn.",
+                    "Tìm thấy ${display.size} nhóm trùng. Gộp = thành 1 người, giữ đủ các số. Nên sao lưu trước khi dọn.",
                     color = C.Sub2, fontSize = 14.sp
                 )
-                for (g in shown) {
+                for (g in display) {
                     CardBox(modifier = Modifier.glowBorder(RoundedCornerShape(20.dp))) {
                         Text(
                             (if (g.byName) "Trùng tên: " else "Trùng số: ") + "${g.label} (${g.items.size})",
@@ -181,20 +199,56 @@ fun DuplicatesScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
                                 phoneOff = phoneOff + (id to (if (k in off) off - k else off + k))
                             }
                         }
-                        Gap(10)
                         val nm = chosenName(g)
                         val nPhones = chosenPhones(g).size
+                        // Bản trong SIM sẽ được dọn khi gộp
+                        val simDirty = if (nm.isEmpty()) emptyList() else
+                            chosenPhones(g).flatMap { data.cleanup.simNeedsCleanup(simRecs, PhoneUtil.key(it), nm) }
+                        if (simDirty.isNotEmpty()) {
+                            Gap(8)
+                            val simNm = data.cleanup.simName(nm)
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(C.Search).padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Filled.SimCard, null, tint = C.Blue, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    if (simDirty.size > 1) "Trong SIM đang có ${simDirty.size} bản số này. Khi gộp sẽ chỉ giữ 1 bản tên \"$simNm\"."
+                                    else "Trong SIM đang lưu tên \"${simDirty[0].name}\". Khi gộp sẽ đổi thành \"$simNm\".",
+                                    color = C.Text, fontSize = 13.sp
+                                )
+                            }
+                        }
+                        Gap(10)
                         PrimaryButton(
                             if (nm.isEmpty()) "Hãy nhập tên" else if (nPhones == 0) "Hãy chọn ít nhất 1 số"
                             else "Gộp thành\n\"$nm\" · $nPhones số",
                             enabled = !busy && nm.isNotEmpty() && nPhones > 0, modifier = Modifier.fillMaxWidth()
                         ) { confirmOne = g }
                         Gap(8)
-                        SecondaryButton("Không trùng, bỏ qua", Modifier.fillMaxWidth()) { skipped = skipped + id }
+                        if (id in ignored) {
+                            SecondaryButton("Hiện lại nhóm này", Modifier.fillMaxWidth()) { setIgnored(ignored - id) }
+                        } else {
+                            SecondaryButton("Không trùng, bỏ qua", Modifier.fillMaxWidth()) { setIgnored(ignored + id) }
+                        }
                     }
                 }
                 if (shown.size > 1) {
                     PrimaryButton("Gộp tất cả (${shown.size})", enabled = !busy, modifier = Modifier.fillMaxWidth()) { confirmAll = true }
+                }
+            }
+            if (data.loaded && hidden.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.Card)
+                        .clickable { showHidden = !showHidden }.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (showHidden) "Đang hiện cả ${hidden.size} nhóm đã ẩn" else "Đã ẩn ${hidden.size} nhóm không trùng",
+                        color = C.Text, fontSize = 14.sp, modifier = Modifier.weight(1f)
+                    )
+                    Text(if (showHidden) "Ẩn đi ›" else "Xem lại ›", color = C.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -227,7 +281,59 @@ fun DuplicatesScreen(data: AppData, onBack: () -> Unit, onChanged: () -> Unit) {
     }
 }
 
-private fun groupId(g: DupGroup) = g.items.map { it.id }.sorted().joinToString(",")
+/** Mã nhóm bền: theo tên + số (không theo mã nội bộ của máy, vì mã này đổi sau khi đồng bộ). */
+private fun groupId(g: DupGroup) = g.items.map { c ->
+    c.name.trim().lowercase() + ":" + c.phones.map { PhoneUtil.key(it) }.distinct().sorted().joinToString("/")
+}.sorted().joinToString("|")
+
+/** Tổng kết sau khi gộp, hiện bằng thẻ trong trang (không dùng khung đen). */
+private data class MergeSummary(val merged: Int, val total: Int, val simCleaned: Int, val failed: List<String>)
+
+@Composable
+private fun MergeResultCards(r: MergeSummary, onClose: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (r.merged > 0) ResultCard(
+            ok = true, title = "Đã gộp ${r.merged} nhóm",
+            sub = if (r.simCleaned > 0) "Đã dọn ${r.simCleaned} bản thừa trong SIM" else null, onClose = onClose
+        )
+        if (r.failed.isNotEmpty() || r.merged < r.total) ResultCard(
+            ok = false,
+            title = if (r.merged < r.total) "${r.total - r.merged} nhóm chưa gộp được" else "${r.failed.size} bản chưa xóa được",
+            sub = (r.failed.joinToString("; ").ifEmpty { "Thử lại sau" }) + " – thử lại hoặc xóa bằng app Danh bạ của máy",
+            onClose = if (r.merged > 0) null else onClose
+        )
+    }
+}
+
+@Composable
+private fun ResultCard(ok: Boolean, title: String, sub: String?, onClose: (() -> Unit)?) {
+    val col = if (ok) C.Green else C.Orange
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(C.Card)
+            .border(1.5.dp, col.copy(alpha = 0.6f), RoundedCornerShape(16.dp)).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(38.dp).clip(RoundedCornerShape(12.dp))
+                .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(col.copy(alpha = 0.12f), col.copy(alpha = 0.24f)))),
+            contentAlignment = Alignment.Center
+        ) {
+            if (ok) Icon(Icons.Filled.Check, null, tint = col, modifier = Modifier.size(22.dp))
+            else Text("!", color = col, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = C.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            if (sub != null) Text(sub, color = C.Sub2, fontSize = 12.5.sp)
+        }
+        if (onClose != null) {
+            Icon(
+                Icons.Filled.Close, "Đóng", tint = C.Sub,
+                modifier = Modifier.size(32.dp).clip(RoundedCornerShape(16.dp)).clickable(onClick = onClose).padding(6.dp)
+            )
+        }
+    }
+}
 
 /** Mọi số trong nhóm (không lặp), kèm "của ai · lưu ở đâu". */
 private fun allPhones(g: DupGroup): List<Pair<String, String>> {

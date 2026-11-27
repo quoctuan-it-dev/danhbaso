@@ -13,6 +13,9 @@ data class DupGroup(
     val keep: ContactItem,
 )
 
+/** Kết quả gộp một nhóm: [simCleaned] = số bản thừa đã dọn trong SIM, [failed] = những gì chưa làm được. */
+data class MergeOne(val ok: Boolean, val simCleaned: Int, val failed: List<String>)
+
 /** Kết quả chép SIM ↔ Gmail. */
 data class CopyResult(val added: Int, val skipped: Int, val shortened: Int, val failed: List<String>)
 
@@ -81,8 +84,8 @@ class Cleanup(private val contacts: ContactsRepo, private val sim: SimRepo) {
      * Người giữ lại = người có đúng tên đã chọn (nếu có), không thì người app tự chọn.
      * Đổi tên nếu cần, thêm số còn thiếu, bỏ số không chọn, rồi xóa những người còn lại.
      */
-    fun mergeCustom(group: DupGroup, name: String, phones: List<String>, account: String?): Boolean {
-        if (phones.isEmpty()) return false
+    fun mergeCustom(group: DupGroup, name: String, phones: List<String>, account: String?): MergeOne {
+        if (phones.isEmpty()) return MergeOne(false, 0, listOf("Chưa chọn số nào"))
         val keep = group.items.firstOrNull { it.name == name } ?: group.keep
         val wanted = phones.associateBy { PhoneUtil.key(it) }
         var ok = true
@@ -93,12 +96,49 @@ class Cleanup(private val contacts: ContactsRepo, private val sim: SimRepo) {
         // 3) Thêm số đã chọn mà người giữ lại chưa có
         val have = keep.phones.map { PhoneUtil.key(it) }.toSet()
         for ((k, p) in wanted) if (k !in have) ok = contacts.addPhoneToContact(keep.id, p, account) && ok
-        // 4) Giữ Yêu thích, rồi xóa người còn lại (chỉ khi các bước trên thành công)
-        if (!ok) return false
+        // 4) Chỉ xóa người còn lại khi các bước trên thành công
+        if (!ok) return MergeOne(false, 0, listOf("Không sửa được \"${keep.name}\""))
+        val failed = ArrayList<String>()
         val others = group.items.filter { it.id != keep.id }
         if (others.any { it.starred } && !keep.starred) contacts.setStarred(keep.id, true)
-        for (o in others) contacts.deleteContact(o.id)
-        return true
+        for (o in others) if (!contacts.deleteContact(o.id)) failed += "\"${o.name}\" trong danh bạ máy / Gmail"
+        // 5) Dọn SIM: mỗi số chỉ giữ 1 bản mang tên đã chọn.
+        //    Bản cũ trong SIM (tên không dấu) nếu còn sẽ bị chép lại sang Gmail và lại trùng.
+        var simCleaned = 0
+        if (group.items.any { it.inSim }) {
+            val recs = sim.records()
+            for ((k, p) in wanted) {
+                val same = recs.filter { PhoneUtil.key(it.number) == k }
+                if (same.isEmpty()) continue
+                if (same.size == 1 && simNameMatches(same[0].name, name)) continue
+                if (!sim.deleteNumber(p)) {
+                    failed += same.joinToString(", ") { "\"${it.name}\"" } + " trong SIM"
+                    continue
+                }
+                val w = sim.insert(name, p)
+                if (w == SimWriteResult.OK || w == SimWriteResult.SHORTENED) simCleaned += same.size - 1
+                else failed += "Ghi lại số ${PhoneUtil.pretty(p)} vào SIM"
+            }
+        }
+        return MergeOne(true, simCleaned, failed)
+    }
+
+    /** Tên trong SIM có phải là bản rút gọn của [full] không (VD "Thầy Thanh D" của "Thầy Thanh Dạy ĐHMT"). */
+    private fun simNameMatches(simName: String, full: String): Boolean {
+        val s = simName.trim()
+        return s.isNotEmpty() && full.trim().startsWith(s)
+    }
+
+    /** Các bản ghi trong SIM (đọc chậm – gọi trong Dispatchers.IO). */
+    fun simRecords(): List<SimRecord> = sim.records()
+
+    /** Tên sẽ lưu vào SIM cho [name] (giữ dấu nếu vừa). */
+    fun simName(name: String): String = sim.previewName(name, true)
+
+    /** Bản trong SIM của số [k] có cần dọn không: nhiều bản, hoặc 1 bản nhưng tên khác. */
+    fun simNeedsCleanup(recs: List<SimRecord>, k: String, name: String): List<SimRecord> {
+        val same = recs.filter { PhoneUtil.key(it.number) == k }
+        return if (same.size > 1 || (same.size == 1 && !simNameMatches(same[0].name, name))) same else emptyList()
     }
 
     /** Số trong SIM mà Gmail [account] chưa có. */

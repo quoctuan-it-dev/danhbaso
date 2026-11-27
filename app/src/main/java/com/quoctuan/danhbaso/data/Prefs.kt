@@ -32,6 +32,11 @@ class Prefs(context: Context) {
         get() = sp.getStringSet("sec_ignored", emptySet())?.toSet() ?: emptySet()
         set(v) = sp.edit { putStringSet("sec_ignored", v) }
 
+    /** Các nhóm ở "Dọn danh bạ trùng" người dùng đã bấm "Không trùng, bỏ qua". */
+    var ignoredDupes: Set<String>
+        get() = sp.getStringSet("dup_ignored", emptySet())?.toSet() ?: emptySet()
+        set(v) = sp.edit { putStringSet("dup_ignored", v) }
+
     /** Sáng / Tối: 0 Tự động theo điện thoại, 1 Luôn sáng, 2 Luôn tối. */
     var darkMode: Int
         get() = sp.getInt("dark_mode", 0)

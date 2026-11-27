@@ -5,6 +5,18 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.offset
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -238,7 +250,20 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
         ) {
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f)) {
-                    when (tab) {
+                  // Chuyển tab: trang trượt ngang theo hướng tab + mờ dần (~0,3 giây)
+                  AnimatedContent(
+                    targetState = tab,
+                    modifier = Modifier.fillMaxSize(),
+                    transitionSpec = {
+                        val dir = if (targetState.ordinal > initialState.ordinal) 1 else -1
+                        (slideInHorizontally(tween(300, easing = FastOutSlowInEasing)) { w -> dir * w } +
+                            fadeIn(tween(300))) togetherWith
+                            (slideOutHorizontally(tween(300, easing = FastOutSlowInEasing)) { w -> -dir * w } +
+                                fadeOut(tween(250))) using SizeTransform(clip = true)
+                    },
+                    label = "tab"
+                  ) { t ->
+                    when (t) {
                         Tab.RECENTS -> RecentsScreen(
                             data, hasCallLog,
                             onMenu = { scope.launch { drawer.open() } },
@@ -255,6 +280,7 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
                             onChanged = refresh,
                         )
                     }
+                  }
                 }
                 BottomBar(tab, onSelect = { t -> if (t == Tab.CONTACTS) focusSearch = false; tab = t })
             }
@@ -385,7 +411,7 @@ private fun BottomBar(tab: Tab, onSelect: (Tab) -> Unit) {
         Triple(Tab.DIALPAD, "Bàn phím", Icons.Filled.Dialpad),
         Triple(Tab.CONTACTS, "Danh bạ", Icons.Outlined.Person),
     )
-    androidx.compose.foundation.layout.Row(
+    androidx.compose.foundation.layout.BoxWithConstraints(
         Modifier.fillMaxWidth().background(C.Nav)
             .drawBehind {
                 // đường sáng mảnh phía trên thanh menu
@@ -394,28 +420,35 @@ private fun BottomBar(tab: Tab, onSelect: (Tab) -> Unit) {
                     androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), strokeWidth = 2f
                 )
             }
-            .padding(top = 10.dp, bottom = 10.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly
+            .padding(top = 10.dp, bottom = 10.dp)
     ) {
-        for ((t, label, icon) in items) {
-            val sel = t == tab
-            Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
-                    .clickable { onSelect(t) }.padding(vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    Modifier.width(76.dp).height(40.dp)
-                        .then(if (sel) Modifier.glow(RoundedCornerShape(20.dp), 12.dp) else Modifier)
-                        .clip(RoundedCornerShape(20.dp))
-                        .then(if (sel) Modifier.background(C.accent) else Modifier),
-                    contentAlignment = Alignment.Center
+        // Viên nền màu trượt theo tab đang chọn
+        val cell = maxWidth / items.size
+        val idx = items.indexOfFirst { it.first == tab }.coerceAtLeast(0)
+        val pillX by animateDpAsState(
+            cell * idx + (cell - 76.dp) / 2, tween(300, easing = FastOutSlowInEasing), label = "pill"
+        )
+        Box(
+            Modifier.offset(x = pillX, y = 4.dp).width(76.dp).height(40.dp)
+                .glow(RoundedCornerShape(20.dp), 12.dp)
+                .clip(RoundedCornerShape(20.dp)).background(C.accent)
+        )
+        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth()) {
+            for ((t, label, icon) in items) {
+                val sel = t == tab
+                val tint by animateColorAsState(if (sel) C.OnBlue else C.Sub2, tween(300), label = "tint")
+                Column(
+                    Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
+                        .clickable { onSelect(t) }.padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(icon, label, tint = if (sel) C.OnBlue else C.Sub2, modifier = Modifier.size(28.dp))
+                    Box(Modifier.width(76.dp).height(40.dp), contentAlignment = Alignment.Center) {
+                        Icon(icon, label, tint = tint, modifier = Modifier.size(28.dp))
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(label, color = if (sel) C.Text else C.Sub2, fontSize = 15.sp,
+                        fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
                 }
-                Spacer(Modifier.height(6.dp))
-                Text(label, color = if (sel) C.Text else C.Sub2, fontSize = 15.sp,
-                    fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
             }
         }
     }

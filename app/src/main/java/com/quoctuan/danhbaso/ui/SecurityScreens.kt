@@ -178,19 +178,41 @@ private fun SafeScreen(r: SecReport) {
         Spacer(Modifier.height(6.dp))
         Text("Đang vào Danh bạ số…", color = C.Sub2, fontSize = 15.sp)
         Spacer(Modifier.height(18.dp))
-        val okItems = r.items.filter { it.level == SecLevel.OK }.map { it.title }
-        // Các mục đạt, xếp 2 cột
+        // Các mục đạt: lưới 2×2, ô bằng nhau
+        val okItems = r.items.filter { it.level == SecLevel.OK }
         okItems.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 3.dp)) {
-                row.forEach { t ->
-                    Text(
-                        "✓ $t", color = SAFE_GREEN, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(C.GreenBg).padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
-                }
+            Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { i -> SafeTile(i, Modifier.weight(1f)) }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
+}
+
+/** Ô nhỏ trong lưới màn "Thiết bị an toàn". */
+@Composable
+private fun SafeTile(i: SecItem, modifier: Modifier) {
+    Row(
+        modifier.height(66.dp).clip(RoundedCornerShape(16.dp)).background(C.Card).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(36.dp).clip(RoundedCornerShape(11.dp))
+                .background(Brush.linearGradient(listOf(C.Green.copy(alpha = 0.12f), C.Green.copy(alpha = 0.24f)))),
+            contentAlignment = Alignment.Center
+        ) { Icon(secIcon(i), null, tint = C.Green, modifier = Modifier.size(20.dp)) }
+        Spacer(Modifier.width(10.dp))
+        Text(shortTitle(i), color = C.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, lineHeight = 16.sp, maxLines = 2, modifier = Modifier.weight(1f))
+    }
+}
+
+/** Tên ngắn cho ô lưới. */
+private fun shortTitle(i: SecItem): String = when {
+    i.id == "sig" -> "App chính chủ"
+    i.id == "root" -> "Không bị root"
+    i.id == "lock" -> "Có khóa màn hình"
+    i.id.startsWith("a11y") -> "Không có app lạ"
+    else -> i.title
 }
 
 @Composable
