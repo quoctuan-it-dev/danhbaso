@@ -2,6 +2,7 @@ package com.quoctuan.danhbaso
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Button
@@ -100,9 +102,26 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/** Số được app khác (hoặc màn hình gọi → "Thêm người") nhờ mở bằng bàn phím. "" = chỉ mở bàn phím. */
+object DialRequest {
+    var number by mutableStateOf<String?>(null)
+
+    fun from(i: Intent?) {
+        if (i?.action == Intent.ACTION_DIAL || (i?.action == Intent.ACTION_VIEW && i.data?.scheme == "tel")) {
+            number = i.data?.schemeSpecificPart ?: ""
+        }
+    }
+}
+
 class MainActivity : ComponentActivity() {
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        DialRequest.from(intent)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) DialRequest.from(intent)
         enableEdgeToEdge()
         val data = AppData(applicationContext)
         setContent {
@@ -147,6 +166,7 @@ sealed interface Route {
     data object Duplicates : Route
     data object CopySim : Route
     data object Security : Route
+    data object CallScreen : Route
 }
 
 enum class Tab { RECENTS, DIALPAD, CONTACTS }
@@ -226,6 +246,17 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
     fun openNumber(n: String) {
         val c = data.contactFor(n)
         push(if (c != null) Route.Contact(c.id) else Route.Number(n))
+    }
+
+    // App khác nhờ mở bàn phím / mở một số (khi Danh bạ số là ứng dụng Điện thoại)
+    val dialReq = DialRequest.number
+    LaunchedEffect(dialReq, data.loaded) {
+        if (dialReq != null && data.loaded) {
+            DialRequest.number = null
+            while (stack.size > 1) stack.removeAt(stack.lastIndex)
+            tab = Tab.DIALPAD
+            if (dialReq.isNotBlank()) openNumber(dialReq)
+        }
     }
 
     when (val r = stack.last()) {
@@ -332,6 +363,7 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
         Route.Duplicates -> com.quoctuan.danhbaso.ui.DuplicatesScreen(data, onBack = { pop() }, onChanged = refresh)
         Route.CopySim -> com.quoctuan.danhbaso.ui.CopySimGmailScreen(data, onBack = { pop() }, onChanged = refresh)
         Route.Security -> com.quoctuan.danhbaso.ui.SecurityScreen(data, onBack = { pop() })
+        Route.CallScreen -> com.quoctuan.danhbaso.ui.CallScreenSettings(onBack = { pop() })
     }
     if (showKeypadSize) com.quoctuan.danhbaso.ui.KeypadSizeDialog(data) { showKeypadSize = false }
     if (showTheme) com.quoctuan.danhbaso.ui.ThemeDialog(data) { showTheme = false }
@@ -369,6 +401,12 @@ private fun AppDrawer(data: AppData, onKeypadSize: () -> Unit, onTheme: () -> Un
             NavigationDrawerItem(
                 label = { Text("Kiểm tra bảo mật") }, icon = { Icon(Icons.Filled.VerifiedUser, null) },
                 selected = false, onClick = { onPick(Route.Security) }, colors = colors
+            )
+            val ctxD = LocalContext.current
+            NavigationDrawerItem(
+                label = { Text("Màn hình gọi: " + if (com.quoctuan.danhbaso.call.CallRole.isDefault(ctxD)) "Danh bạ số" else "Điện thoại") },
+                icon = { Icon(Icons.Filled.PhoneInTalk, null) },
+                selected = false, onClick = { onPick(Route.CallScreen) }, colors = colors
             )
             NavigationDrawerItem(
                 label = { Text("Cỡ bàn phím: " + listOf("Nhỏ", "Vừa", "Lớn")[data.keypadSize]) },

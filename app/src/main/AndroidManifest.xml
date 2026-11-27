@@ -13,6 +13,11 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <!-- Liệt kê các tài khoản Gmail trên máy -->
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <!-- Màn hình gọi của app (☰ → Màn hình gọi): thông báo cuộc gọi, hiện trên màn hình khóa,
+         tắt màn hình khi áp tai -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- BẢO MẬT: app KHÔNG có quyền Internet. Dòng dưới đảm bảo không thư viện nào tự thêm quyền này. -->
     <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
@@ -46,7 +51,48 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Bắt buộc để Android cho chọn Danh bạ số làm "ứng dụng Điện thoại" -->
+            <intent-filter>
+                <action android:name="android.intent.action.DIAL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.DIAL" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tel" />
+            </intent-filter>
         </activity>
+
+        <!-- Màn hình cuộc gọi đến / đang gọi (không qua cổng kiểm tra bảo mật để không lỡ cuộc gọi) -->
+        <activity
+            android:name=".call.CallActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity="${applicationId}.call"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            tools:targetApi="27" />
+
+        <!-- Hệ thống gửi cuộc gọi vào đây khi Danh bạ số là ứng dụng Điện thoại mặc định -->
+        <service
+            android:name=".call.DbsInCallService"
+            android:exported="true"
+            android:permission="android.permission.BIND_INCALL_SERVICE">
+            <meta-data
+                android:name="android.telecom.IN_CALL_SERVICE_UI"
+                android:value="true" />
+            <intent-filter>
+                <action android:name="android.telecom.InCallService" />
+            </intent-filter>
+        </service>
+
+        <!-- Nút Từ chối / Kết thúc / Loa trên thông báo cuộc gọi -->
+        <receiver
+            android:name=".call.CallActionReceiver"
+            android:exported="false" />
         <!-- Cho app Google Drive đọc file sao lưu đã mã hóa (app này vẫn KHÔNG có quyền Internet) -->
         <provider
             android:name="androidx.core.content.FileProvider"
