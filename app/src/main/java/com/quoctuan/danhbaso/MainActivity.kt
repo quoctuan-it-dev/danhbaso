@@ -24,6 +24,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -31,6 +36,7 @@ import com.quoctuan.danhbaso.ui.glow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,8 +63,6 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
@@ -167,6 +171,7 @@ sealed interface Route {
     data object CopySim : Route
     data object Security : Route
     data object CallScreen : Route
+    data class GroupCallPick(val preselect: List<Long>, val title: String?) : Route
 }
 
 enum class Tab { RECENTS, DIALPAD, CONTACTS }
@@ -309,6 +314,7 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
                             onOpen = { c -> push(Route.Contact(c.id)) },
                             onAdd = { push(Route.Edit(null, null)) },
                             onChanged = refresh,
+                            onGroupCall = { ids, title -> push(Route.GroupCallPick(ids, title)) },
                         )
                     }
                   }
@@ -364,6 +370,7 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
         Route.CopySim -> com.quoctuan.danhbaso.ui.CopySimGmailScreen(data, onBack = { pop() }, onChanged = refresh)
         Route.Security -> com.quoctuan.danhbaso.ui.SecurityScreen(data, onBack = { pop() })
         Route.CallScreen -> com.quoctuan.danhbaso.ui.CallScreenSettings(onBack = { pop() })
+        is Route.GroupCallPick -> com.quoctuan.danhbaso.ui.GroupCallPickScreen(data, r.preselect, r.title, onBack = { pop() })
     }
     if (showKeypadSize) com.quoctuan.danhbaso.ui.KeypadSizeDialog(data) { showKeypadSize = false }
     if (showTheme) com.quoctuan.danhbaso.ui.ThemeDialog(data) { showTheme = false }
@@ -372,76 +379,151 @@ private fun MainNav(data: AppData, hasCallLog: Boolean, onGrant: () -> Unit) {
 
 @Composable
 private fun AppDrawer(data: AppData, onKeypadSize: () -> Unit, onTheme: () -> Unit, onFont: () -> Unit, onPick: (Route) -> Unit) {
-    ModalDrawerSheet(drawerContainerColor = C.Nav, drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 24.dp)) {
-            Text("Danh bạ số", color = C.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp))
-            val last = data.lastBackup
-            Text(
-                "${data.contacts.size} liên hệ · " + if (last == 0L) "chưa sao lưu"
-                else "sao lưu lần cuối " + SimpleDateFormat("dd/MM", Locale.getDefault()).format(Date(last)),
-                color = C.Sub, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-            )
-            Gap(16)
-            val colors = NavigationDrawerItemDefaults.colors(
-                unselectedContainerColor = C.Nav, unselectedTextColor = C.Text, unselectedIconColor = C.Sub2,
-                selectedContainerColor = C.BlueBg, selectedTextColor = C.Text, selectedIconColor = C.Blue,
-            )
-            NavigationDrawerItem(
-                label = { Text("Sao lưu và khôi phục", fontWeight = FontWeight.SemiBold) },
-                icon = { Icon(Icons.Filled.Shield, null) }, selected = true, onClick = { onPick(Route.Backup) }, colors = colors
-            )
-            NavigationDrawerItem(
-                label = { Text("Dọn danh bạ trùng") }, icon = { Icon(Icons.Filled.CleaningServices, null) },
-                selected = false, onClick = { onPick(Route.Duplicates) }, colors = colors
-            )
-            NavigationDrawerItem(
-                label = { Text("Chép SIM ↔ Gmail") }, icon = { Icon(Icons.Filled.SwapHoriz, null) },
-                selected = false, onClick = { onPick(Route.CopySim) }, colors = colors
-            )
-            NavigationDrawerItem(
-                label = { Text("Kiểm tra bảo mật") }, icon = { Icon(Icons.Filled.VerifiedUser, null) },
-                selected = false, onClick = { onPick(Route.Security) }, colors = colors
-            )
-            val ctxD = LocalContext.current
-            NavigationDrawerItem(
-                label = { Text("Màn hình gọi: " + if (com.quoctuan.danhbaso.call.CallRole.isDefault(ctxD)) "Danh bạ số" else "Điện thoại") },
-                icon = { Icon(Icons.Filled.PhoneInTalk, null) },
-                selected = false, onClick = { onPick(Route.CallScreen) }, colors = colors
-            )
-            NavigationDrawerItem(
-                label = { Text("Cỡ bàn phím: " + listOf("Nhỏ", "Vừa", "Lớn")[data.keypadSize]) },
-                icon = { Icon(Icons.Filled.Dialpad, null) },
-                selected = false, onClick = onKeypadSize, colors = colors
-            )
-            NavigationDrawerItem(
-                label = { Text("Cỡ chữ: " + com.quoctuan.danhbaso.data.FONT_NAMES[data.fontSize]) },
-                icon = { Icon(Icons.Filled.FormatSize, null) },
-                selected = false, onClick = onFont, colors = colors
-            )
-            NavigationDrawerItem(
-                label = { Text("Màu giao diện: " + com.quoctuan.danhbaso.ui.THEME_NAMES[data.theme]) },
-                icon = { Icon(Icons.Filled.Palette, null) },
-                selected = false, onClick = onTheme, colors = colors
-            )
-            NavigationDrawerItem(
-                label = { Text("Thông tin ứng dụng") }, icon = { Icon(Icons.Filled.Info, null) },
-                selected = false, onClick = { onPick(Route.Info) }, colors = colors
-            )
-            NavigationDrawerItem(
-                label = { Text("Cập nhật ứng dụng") }, icon = { Icon(Icons.Filled.Refresh, null) },
-                selected = false, onClick = { onPick(Route.Update) }, colors = colors
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                "Danh bạ số được phát triển bởi Quốc Tuấn", color = C.Sub2, fontSize = 13.sp,
-                modifier = Modifier.padding(horizontal = 14.dp)
-            )
-            Text("Phiên bản ${BuildConfig.VERSION_NAME}", color = C.Sub, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp))
+    val ctx = LocalContext.current
+    // Trạng thái bảo mật cho nhãn "An toàn / Cần lưu ý"
+    val sec by androidx.compose.runtime.produceState<com.quoctuan.danhbaso.data.SecReport?>(null) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.quoctuan.danhbaso.data.SecurityCheck.run(ctx) }.getOrNull()
+        }
+    }
+    val isAppCall = com.quoctuan.danhbaso.call.CallRole.isDefault(ctx)
+    ModalDrawerSheet(
+        drawerContainerColor = C.Bg, drawerShape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp),
+        modifier = Modifier.width(318.dp)
+    ) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 12.dp)) {
+            DrawerHeader(data.contacts.size, data.lastBackup)
+            DrawerSection("Dữ liệu") {
+                val last = data.lastBackup
+                DrawerRow(Icons.Filled.Shield, Color(0xFF2F86FF), "Sao lưu và khôi phục",
+                    if (last == 0L) "Chưa" else SimpleDateFormat("dd/MM", Locale.getDefault()).format(Date(last))) { onPick(Route.Backup) }
+                DrawerRow(Icons.Filled.CleaningServices, Color(0xFFF2A33A), "Dọn danh bạ trùng") { onPick(Route.Duplicates) }
+                DrawerRow(Icons.Filled.SwapHoriz, Color(0xFF8E6CF0), "Chép SIM ↔ Gmail") { onPick(Route.CopySim) }
+            }
+            DrawerSection("Bảo mật & cuộc gọi") {
+                val r = sec
+                val (secText, secColor) = when {
+                    r == null -> "…" to C.Sub2
+                    r.danger.isNotEmpty() -> "● Nguy hiểm" to C.Red
+                    r.warnings.isNotEmpty() -> "● Cần lưu ý" to C.Orange
+                    else -> "● An toàn" to C.Green
+                }
+                DrawerRow(Icons.Filled.VerifiedUser, Color(0xFF1FB57A), "Bảo mật", secText, secColor) { onPick(Route.Security) }
+                DrawerRow(Icons.Filled.PhoneInTalk, Color(0xFF1FB5E8), "Màn hình gọi", if (isAppCall) "Danh bạ số" else "Điện thoại") { onPick(Route.CallScreen) }
+            }
+            DrawerSection("Giao diện") {
+                DrawerRow(Icons.Filled.Dialpad, Color(0xFF7A879C), "Cỡ bàn phím", listOf("Nhỏ", "Vừa", "Lớn")[data.keypadSize], onClick = onKeypadSize)
+                DrawerRow(Icons.Filled.FormatSize, Color(0xFF7A879C), "Cỡ chữ", com.quoctuan.danhbaso.data.FONT_NAMES[data.fontSize], onClick = onFont)
+                DrawerRow(Icons.Filled.Palette, Color(0xFFE0569A), "Màu giao diện", com.quoctuan.danhbaso.ui.THEME_NAMES[data.theme], dot = C.Blue, onClick = onTheme)
+            }
+            DrawerSection("Ứng dụng") {
+                DrawerRow(Icons.Filled.Info, Color(0xFF7A879C), "Thông tin ứng dụng") { onPick(Route.Info) }
+                DrawerRow(Icons.Filled.Refresh, Color(0xFF2F86FF), "Cập nhật ứng dụng", "v${BuildConfig.VERSION_NAME}") { onPick(Route.Update) }
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)) {
+                Text("Phát triển bởi Quốc Tuấn", color = C.Sub, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text("v${BuildConfig.VERSION_NAME}", color = C.Sub, fontSize = 12.sp)
+            }
         }
     }
 }
 
+/** Thẻ đầu menu: logo, tên app, số liên hệ, ngày sao lưu. */
+@Composable
+private fun DrawerHeader(contacts: Int, lastBackup: Long) {
+    Box(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF0E3A6E), Color(0xFF1565C0), Color(0xFF1FB5E8))))
+    ) {
+        Box(
+            Modifier.align(Alignment.TopEnd).offset(30.dp, (-30).dp).size(120.dp)
+                .border(2.dp, Color.White.copy(alpha = 0.13f), CircleShape)
+        )
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(50.dp).clip(RoundedCornerShape(15.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                val m = Modifier.size(74.dp)
+                androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_background), null, m)
+                androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_foreground), null, m)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("Danh bạ số", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    HeaderTag("$contacts liên hệ")
+                    val last = lastBackup
+                    HeaderTag(if (last == 0L) "Chưa sao lưu" else "Sao lưu " + SimpleDateFormat("dd/MM", Locale.getDefault()).format(Date(last)))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderTag(text: String) {
+    Text(
+        text, color = Color.White, fontSize = 11.5.sp, maxLines = 1,
+        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.18f))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    )
+}
+
+/** Một nhóm mục trong menu: tiêu đề nhỏ + thẻ bo góc. */
+@Composable
+private fun DrawerSection(title: String, content: @Composable () -> Unit) {
+    Text(
+        title.uppercase(), color = C.Sub, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp,
+        modifier = Modifier.padding(start = 10.dp, top = 14.dp, bottom = 6.dp)
+    )
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.Card).padding(vertical = 2.dp)) {
+        content()
+    }
+}
+
+/** Một dòng menu: ô biểu tượng màu · tên · nhãn giá trị · mũi tên. */
+@Composable
+private fun DrawerRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    title: String,
+    value: String? = null,
+    valueColor: Color? = null,
+    dot: Color? = null,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(tint.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) { Icon(icon, null, tint = tint, modifier = Modifier.size(19.dp)) }
+        Spacer(Modifier.width(12.dp))
+        Text(title, color = C.Text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f))
+        if (value != null) {
+            Row(
+                Modifier.clip(RoundedCornerShape(10.dp)).background((valueColor ?: C.Sub2).copy(alpha = 0.12f))
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (dot != null) {
+                    Box(Modifier.size(9.dp).clip(CircleShape).background(dot))
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(value, color = valueColor ?: C.Sub2, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            }
+        }
+        Text("›", color = C.Sub, fontSize = 18.sp, modifier = Modifier.padding(start = 6.dp))
+    }
+}
+
 /** Thanh menu dưới (to, dễ bấm). Mục đang chọn có viên nền màu cyan → xanh dương. */
+@android.annotation.SuppressLint("UnusedBoxWithConstraintsScope") // có dùng maxWidth để đặt viên nền
 @Composable
 private fun BottomBar(tab: Tab, onSelect: (Tab) -> Unit) {
     val items = listOf(
@@ -471,7 +553,7 @@ private fun BottomBar(tab: Tab, onSelect: (Tab) -> Unit) {
                 .glow(RoundedCornerShape(20.dp), 12.dp)
                 .clip(RoundedCornerShape(20.dp)).background(C.accent)
         )
-        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth()) {
             for ((t, label, icon) in items) {
                 val sel = t == tab
                 val tint by animateColorAsState(if (sel) C.OnBlue else C.Sub2, tween(300), label = "tint")
@@ -491,3 +573,41 @@ private fun BottomBar(tab: Tab, onSelect: (Tab) -> Unit) {
         }
     }
 }
+
+// ───────────────────────── Xem trước menu ☰ trong Android Studio (Preview) ─────────────────────────
+// Bấm nút "Split" góc trên bên phải để xem. Dữ liệu là DỮ LIỆU MẪU, không có trong app thật.
+
+@Composable
+private fun DrawerPreviewBody(mode: Int) {
+    com.quoctuan.danhbaso.ui.AppTheme(theme = 0, mode = mode) {
+        Column(Modifier.width(318.dp).background(C.Bg).padding(12.dp)) {
+            DrawerHeader(44, System.currentTimeMillis())
+            DrawerSection("Dữ liệu") {
+                DrawerRow(Icons.Filled.Shield, Color(0xFF2F86FF), "Sao lưu và khôi phục", "26/11") {}
+                DrawerRow(Icons.Filled.CleaningServices, Color(0xFFF2A33A), "Dọn danh bạ trùng") {}
+                DrawerRow(Icons.Filled.SwapHoriz, Color(0xFF8E6CF0), "Chép SIM ↔ Gmail") {}
+            }
+            DrawerSection("Bảo mật & cuộc gọi") {
+                DrawerRow(Icons.Filled.VerifiedUser, Color(0xFF1FB57A), "Bảo mật", "● An toàn", C.Green) {}
+                DrawerRow(Icons.Filled.PhoneInTalk, Color(0xFF1FB5E8), "Màn hình gọi", "Danh bạ số") {}
+            }
+            DrawerSection("Giao diện") {
+                DrawerRow(Icons.Filled.Dialpad, Color(0xFF7A879C), "Cỡ bàn phím", "Vừa") {}
+                DrawerRow(Icons.Filled.FormatSize, Color(0xFF7A879C), "Cỡ chữ", "Vừa") {}
+                DrawerRow(Icons.Filled.Palette, Color(0xFFE0569A), "Màu giao diện", "Navy biển", dot = C.Blue) {}
+            }
+            DrawerSection("Ứng dụng") {
+                DrawerRow(Icons.Filled.Info, Color(0xFF7A879C), "Thông tin ứng dụng") {}
+                DrawerRow(Icons.Filled.Refresh, Color(0xFF2F86FF), "Cập nhật ứng dụng", "v1.4.3") {}
+            }
+        }
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Menu · Sáng", heightDp = 820)
+@Composable
+private fun PreviewDrawerLight() = DrawerPreviewBody(mode = 1)
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Menu · Tối", heightDp = 820)
+@Composable
+private fun PreviewDrawerDark() = DrawerPreviewBody(mode = 2)

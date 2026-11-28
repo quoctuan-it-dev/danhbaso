@@ -19,6 +19,7 @@ class DbsInCallService : InCallService() {
                 CallManager.speakerOnAnswer = null
                 CallManager.setSpeaker(true)
             }
+            GroupCall.onStateChanged(call, state)
             CallManager.changed()
             CallNotifier.update(this@DbsInCallService)
         }
@@ -33,6 +34,7 @@ class DbsInCallService : InCallService() {
         CallManager.service = this
         call.registerCallback(callback)
         CallManager.calls.add(call)
+        GroupCall.onCallAdded(call)
         CallManager.changed()
         CallNotifier.update(this)
 
@@ -53,6 +55,7 @@ class DbsInCallService : InCallService() {
         call.unregisterCallback(callback)
         CallManager.calls.remove(call)
         if (CallManager.speakerOnAnswer == call) CallManager.speakerOnAnswer = null
+        GroupCall.onCallRemoved(call)
         CallManager.changed()
         CallNotifier.update(this)
     }

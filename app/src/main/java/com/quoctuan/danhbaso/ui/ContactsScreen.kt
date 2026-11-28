@@ -76,6 +76,7 @@ fun ContactsScreen(
     onOpen: (ContactItem) -> Unit,
     onAdd: () -> Unit,
     onChanged: () -> Unit,
+    onGroupCall: (List<Long>, String?) -> Unit = { _, _ -> },
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -167,12 +168,29 @@ fun ContactsScreen(
             // Thanh nhóm: chỉ có khi máy có tài khoản Gmail
             if (data.selectedAccount != null) {
                 item { GroupBar(data, groupSel, onSelect = { groupSel = it }, onCreate = { showCreateGroup = true }) }
-                groupSel?.let { gid -> item { GroupManageRow(data, gid, onDeleted = { groupSel = null }) } }
+                groupSel?.let { gid ->
+                    item {
+                        GroupManageRow(data, gid, onDeleted = { groupSel = null }, onCall = { title ->
+                            onGroupCall((data.groupMembers[gid] ?: emptySet()).toList(), title)
+                        })
+                    }
+                }
             }
             if (query.isBlank() && groupSel == null && !selecting) {
                 item {
                     Row(Modifier.fillMaxWidth().padding(20.dp, 8.dp, 20.dp, 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Yêu thích", color = C.Blue, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        // Gọi nhóm: chọn nhiều người, app gọi lần lượt rồi gộp
+                        Row(
+                            Modifier.clip(RoundedCornerShape(14.dp)).background(C.Green.copy(alpha = 0.14f))
+                                .clickable { onGroupCall(emptyList(), null) }.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.Groups, null, tint = C.Green, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Gọi nhóm", color = C.Green, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(10.dp))
                         Text("${list.size} liên hệ", color = C.Sub, fontSize = 13.sp)
                     }
                 }

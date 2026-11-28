@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -224,7 +225,7 @@ fun PickGroupsDialog(data: AppData, contact: ContactItem, onDismiss: () -> Unit)
 
 /** Hàng dưới thanh nhóm khi đang chọn một nhóm: Đổi tên · Xóa nhóm. */
 @Composable
-fun GroupManageRow(data: AppData, groupId: Long, onDeleted: () -> Unit) {
+fun GroupManageRow(data: AppData, groupId: Long, onDeleted: () -> Unit, onCall: (String) -> Unit = {}) {
     val g = data.groups.firstOrNull { it.id == groupId } ?: return
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
@@ -234,6 +235,7 @@ fun GroupManageRow(data: AppData, groupId: Long, onDeleted: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text("Nhóm: ${g.title}", color = C.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1)
+        SmallAction("Gọi cả nhóm", Icons.Filled.Call, C.Green) { onCall(g.title) }
         SmallAction("Đổi tên", Icons.Filled.Edit, C.Blue) { renaming = true }
         SmallAction("Xóa nhóm", Icons.Filled.Delete, C.Red) { deleting = true }
     }

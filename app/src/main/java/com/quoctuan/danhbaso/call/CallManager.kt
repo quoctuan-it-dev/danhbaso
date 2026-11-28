@@ -44,10 +44,13 @@ object CallManager {
     fun ringing(): Call? = calls.firstOrNull { state(it) == Call.STATE_RINGING }
 
     /** Cuộc gọi chính để hiện lên màn hình. */
-    fun current(): Call? =
-        ringing()
-            ?: calls.firstOrNull { val s = state(it); s != Call.STATE_HOLDING && s != Call.STATE_DISCONNECTED }
-            ?: calls.firstOrNull { state(it) != Call.STATE_DISCONNECTED }
+    fun current(): Call? {
+        // Bỏ qua các cuộc "con" nằm trong cuộc gọi hội nghị
+        val top = calls.filter { it.parent == null }
+        return ringing()
+            ?: top.firstOrNull { val s = state(it); s != Call.STATE_HOLDING && s != Call.STATE_DISCONNECTED }
+            ?: top.firstOrNull { state(it) != Call.STATE_DISCONNECTED }
+    }
 
     fun isSpeaker(): Boolean = audio?.route == CallAudioState.ROUTE_SPEAKER
     fun isMuted(): Boolean = audio?.isMuted == true

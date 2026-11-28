@@ -482,3 +482,46 @@ private fun SecRow(i: SecItem) {
         }
     }
 }
+
+// ───────────────────────── Xem trước trong Android Studio (Preview) ─────────────────────────
+// Bấm nút "Split" góc trên bên phải để xem. DỮ LIỆU MẪU, không có trong app thật.
+
+private val previewReport = SecReport(
+    items = listOf(
+        SecItem("sig", SecLevel.OK, "App chính chủ, không bị sửa", ""),
+        SecItem("root", SecLevel.OK, "Máy không bị root", ""),
+        SecItem("lock", SecLevel.OK, "Có khóa màn hình", ""),
+        SecItem("a11y", SecLevel.OK, "Không có app lạ đọc màn hình", ""),
+    ),
+    signature = "",
+)
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Thiết bị an toàn · Sáng", widthDp = 360, heightDp = 780)
+@Composable
+private fun PreviewSafeLight() = AppTheme(theme = 0, mode = 1) {
+    Box(Modifier.fillMaxSize().background(C.Bg)) { SafeScreen(previewReport) }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Thiết bị an toàn · Tối", widthDp = 360, heightDp = 780)
+@Composable
+private fun PreviewSafeDark() = AppTheme(theme = 0, mode = 2) {
+    Box(Modifier.fillMaxSize().background(C.Bg)) { SafeScreen(previewReport) }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Kiểm tra bảo mật · có điểm cần lưu ý", widthDp = 360, heightDp = 640)
+@Composable
+private fun PreviewSecList() = AppTheme(theme = 0, mode = 1) {
+    val r = SecReport(
+        listOf(
+            SecItem("sig", SecLevel.OK, "App chính chủ, không bị sửa", ""),
+            SecItem("root", SecLevel.OK, "Máy không bị root", ""),
+            SecItem("lock", SecLevel.WARN, "Chưa có khóa màn hình", "Ai cầm máy cũng mở được danh bạ", "android.settings.SECURITY_SETTINGS"),
+            SecItem("a11y", SecLevel.OK, "Không có app lạ đọc màn hình", ""),
+        ), ""
+    )
+    Column(Modifier.fillMaxSize().background(C.Bg).padding(16.dp)) {
+        SecHero(r)
+        Spacer(Modifier.height(12.dp))
+        SecList(r.items)
+    }
+}

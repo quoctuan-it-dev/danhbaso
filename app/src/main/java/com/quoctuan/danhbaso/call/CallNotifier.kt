@@ -69,7 +69,8 @@ object CallNotifier {
         }
         channels(ctx)
         val ringing = CallManager.state(c) == Call.STATE_RINGING
-        val name = CallInfo.display(ctx, CallManager.number(c))
+        val name = if (GroupCall.active && CallManager.state(c) != Call.STATE_RINGING) GroupCall.title
+        else CallInfo.display(ctx, CallManager.number(c))
         val b = NotificationCompat.Builder(ctx, if (ringing) CH_IN else CH_ON)
             .setSmallIcon(android.R.drawable.sym_action_call)
             .setContentTitle(name)
@@ -78,12 +79,20 @@ object CallNotifier {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(activityPi(ctx, 1, null))
         if (ringing) {
-            b.setContentText("Cuộc gọi đến…")
+            // Kiểu thông báo cuộc gọi chuẩn của Android: to, nút Từ chối đỏ / Nghe xanh, nền màu app
+            val who = androidx.core.app.Person.Builder().setName(name).setImportant(true).build()
+            val sim = CallInfo.simLabel(ctx, c)
+            b.setContentText("Cuộc gọi đến" + (sim?.let { " · $it" } ?: ""))
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setFullScreenIntent(activityPi(ctx, 2, null), true)
-                .addAction(0, "Từ chối", broadcastPi(ctx, ACT_DECLINE))
-                .addAction(0, "🔊 Nghe bằng loa", activityPi(ctx, 3, "answer_speaker"))
-                .addAction(0, "Nghe", activityPi(ctx, 4, "answer"))
+                .setColor(0xFF123C74.toInt())
+                .setColorized(true)
+                .setStyle(
+                    NotificationCompat.CallStyle.forIncomingCall(
+                        who, broadcastPi(ctx, ACT_DECLINE), activityPi(ctx, 4, "answer")
+                    )
+                )
+                .addAction(0, "🔊 Loa", activityPi(ctx, 3, "answer_speaker"))
         } else {
             val st = CallManager.state(c)
             val text = when (st) {
@@ -94,7 +103,7 @@ object CallNotifier {
             b.setContentText(text).setOnlyAlertOnce(true).setPriority(NotificationCompat.PRIORITY_LOW)
             val since = c.details?.connectTimeMillis ?: 0L
             if (st == Call.STATE_ACTIVE && since > 0) b.setUsesChronometer(true).setWhen(since).setShowWhen(true)
-            b.addAction(0, if (CallManager.isSpeaker()) "🔊 Tắt loa" else "🔊 Loa ngoài", broadcastPi(ctx, ACT_SPEAKER))
+            b.addAction(0, if (CallManager.isSpeaker()) "🔇 Tắt loa" else "🔊 Loa", broadcastPi(ctx, ACT_SPEAKER))
                 .addAction(0, "Kết thúc", broadcastPi(ctx, ACT_HANGUP))
         }
         try {
