@@ -146,7 +146,7 @@ fun ContactsScreen(
                     Icon(Icons.Filled.Search, null, tint = C.Sub2)
                     Spacer(Modifier.width(12.dp))
                     Box(Modifier.weight(1f)) {
-                        if (query.isEmpty()) Text("Tìm kiếm trong danh bạ", color = C.Sub, fontSize = 16.sp)
+                        if (query.isEmpty()) Text("Tìm trong ${list.size} liên hệ", color = C.Sub, fontSize = 16.sp, maxLines = 1)
                         BasicTextField(
                             value = query, onValueChange = { query = it }, singleLine = true,
                             textStyle = TextStyle(color = C.Text, fontSize = 16.sp),
@@ -190,8 +190,7 @@ fun ContactsScreen(
                             Spacer(Modifier.width(4.dp))
                             Text("Gọi nhóm", color = C.Green, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
-                        Spacer(Modifier.width(10.dp))
-                        Text("${list.size} liên hệ", color = C.Sub, fontSize = 13.sp)
+
                     }
                 }
                 item {

@@ -13,7 +13,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
@@ -43,6 +42,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -64,6 +69,7 @@ class CallActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showOnLockScreen()
+        if (Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(false)
         enableEdgeToEdge()
         handle(intent)
         // Theo ☰ → Cỡ chữ của app
@@ -130,9 +136,14 @@ private fun CallRoot(onClose: () -> Unit) {
         AnimatedContent(
             targetState = phase,
             transitionSpec = {
-                (fadeIn(tween(400)) + scaleIn(tween(400), initialScale = 1.06f) +
-                    slideInVertically(tween(400)) { it / 10 }) togetherWith
-                    (fadeOut(tween(250)) + scaleOut(tween(300), targetScale = 0.94f))
+                // Nghe máy: màn gọi đến mờ đi + trượt xuống nhẹ, màn đang gọi hiện dần + thu về đúng cỡ.
+                // Chạy nhanh lúc đầu rồi chậm dần (FastOutSlowIn) để êm mắt, không chớp.
+                val ease = FastOutSlowInEasing
+                (fadeIn(tween(420, delayMillis = 80, easing = ease)) +
+                    scaleIn(tween(520, easing = ease), initialScale = 1.08f)) togetherWith
+                    (fadeOut(tween(280, easing = ease)) +
+                        slideOutVertically(tween(420, easing = ease)) { it / 10 }) using
+                    androidx.compose.animation.SizeTransform(clip = false)
             },
             label = "phase"
         ) { ph ->
@@ -153,6 +164,7 @@ private fun CallRoot(onClose: () -> Unit) {
 
 @Composable
 private fun IncomingScreen(call: Call, other: Call?) {
+    CallManager.tick // đọc để vẽ lại khi trạng thái cuộc gọi đổi
     val ctx = LocalContext.current
     val number = CallManager.number(call)
     // Tên trong danh bạ (null = số chưa lưu)
@@ -173,7 +185,9 @@ private fun IncomingScreen(call: Call, other: Call?) {
 
 @Composable
 private fun OngoingScreen(call: Call, other: Call?) {
+    CallManager.tick // đọc để vẽ lại khi trạng thái cuộc gọi đổi (giữ máy, tiếp tục…)
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     val number = CallManager.number(call)
     val saved by produceState<String?>(null, number) {
         value = withContext(Dispatchers.IO) { CallInfo.name(ctx, number) }
@@ -184,16 +198,24 @@ private fun OngoingScreen(call: Call, other: Call?) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(call) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
     val since = call.details?.connectTimeMillis ?: 0L
+    val timer = if (since > 0) formatDuration(now - since) else "00:00"
     val status = when (st) {
         Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_NEW -> "Đang gọi…"
         Call.STATE_HOLDING -> "Đang giữ máy"
         Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> "Đã kết thúc"
-        Call.STATE_ACTIVE -> if (since > 0) formatDuration(now - since) else "00:00"
+        Call.STATE_ACTIVE -> timer
         else -> ""
     }
+    val callerName = saved ?: if (number.isBlank()) "Số ẩn" else prettyNumber(number)
 
-    // Tắt màn hình khi áp tai (chỉ khi đang nghe bằng loa trong)
-    val earpiece = st == Call.STATE_ACTIVE && !CallManager.isSpeaker()
+    // Màn phụ: 0 = không, 1 = Ghi số, 2 = Danh bạ
+    var sheet by remember { mutableIntStateOf(0) }
+    var result by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(result) { if (result != null) { delay(4000); result = null } }
+    var contacts by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+
+    // Tắt màn hình khi áp tai (chỉ khi đang nghe bằng loa trong và không mở màn phụ)
+    val earpiece = st == Call.STATE_ACTIVE && !CallManager.isSpeaker() && sheet == 0
     DisposableEffect(earpiece) {
         val pm = ctx.getSystemService(PowerManager::class.java)
         val wl = if (earpiece && pm != null && pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK))
@@ -202,32 +224,141 @@ private fun OngoingScreen(call: Call, other: Call?) {
         onDispose { if (wl?.isHeld == true) wl.release() }
     }
 
-    OngoingContent(
-        saved = saved, number = number, status = status,
-        active = st == Call.STATE_ACTIVE, held = st == Call.STATE_HOLDING,
-        muted = CallManager.isMuted(), speaker = CallManager.isSpeaker(),
-        otherBar = if (other == null) null else {
-            {
-                OtherCallBar(other, canMerge = call.details?.can(Call.Details.CAPABILITY_MERGE_CONFERENCE) == true) {
-                    call.conference(other)
+    Box(Modifier.fillMaxSize()) {
+        OngoingContent(
+            saved = saved, number = number, status = status,
+            active = st == Call.STATE_ACTIVE, held = st == Call.STATE_HOLDING,
+            muted = CallManager.isMuted(), speaker = CallManager.isSpeaker(),
+            otherBar = if (other == null) null else {
+                {
+                    OtherCallBar(other, canMerge = call.details?.can(Call.Details.CAPABILITY_MERGE_CONFERENCE) == true) {
+                        call.conference(other)
+                    }
+                }
+            },
+            onMute = { CallManager.setMuted(!CallManager.isMuted()) },
+            onSpeaker = { CallManager.setSpeaker(!CallManager.isSpeaker()) },
+            onHold = {
+                // Hỏi trạng thái THẬT ngay lúc bấm (không dùng trạng thái cũ trên màn hình)
+                if (CallManager.state(call) == Call.STATE_HOLDING) {
+                    call.unhold()
+                    // An toàn: 2 giây sau vẫn đang giữ máy thì thử lại 1 lần
+                    scope.launch {
+                        delay(2000)
+                        if (CallManager.state(call) == Call.STATE_HOLDING) {
+                            call.unhold()
+                            delay(2000)
+                            if (CallManager.state(call) == Call.STATE_HOLDING) {
+                                result = "Chưa tiếp tục được. Bấm Kết thúc rồi gọi lại nhé."
+                            }
+                        }
+                    }
+                } else {
+                    call.hold()
+                }
+            },
+            onDtmf = { k -> call.playDtmfTone(k); call.stopDtmfTone() },
+            onAddPerson = {
+                // Máy đang khóa thì phải mở khóa trước
+                withUnlock(ctx) {
+                    runCatching {
+                        ctx.startActivity(Intent(Intent.ACTION_DIAL).setClass(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                }
+            },
+            onNote = { sheet = 1 }, // Ghi số dùng được cả khi máy khóa
+            onContacts = {
+                withUnlock(ctx) {
+                    sheet = 2
+                    scope.launch { contacts = withContext(Dispatchers.IO) { CallNote.contacts(ctx) } }
+                }
+            },
+            onHangup = { CallManager.hangup(call) },
+        )
+
+        // Thẻ kết quả (đã lưu số / chưa tiếp tục được…)
+        result?.let { msg ->
+            Row(
+                Modifier.align(Alignment.TopCenter).padding(top = 64.dp, start = 16.dp, end = 16.dp).fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp)).background(NAVY_TOP.copy(alpha = 0.92f))
+                    .border(1.5.dp, MINT.copy(alpha = 0.6f), RoundedCornerShape(20.dp)).padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(msg, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = sheet != 0,
+            enter = fadeIn(tween(250)) + slideInVertically(tween(300)) { it / 8 },
+            exit = fadeOut(tween(200)) + slideOutVertically(tween(250)) { it / 8 },
+        ) {
+            Box(Modifier.fillMaxSize().callBackground()) {
+                val locked = isLocked(ctx)
+                if (sheet == 1) {
+                    NoteSheet(
+                        callerName = callerName, timer = timer, locked = locked, hasSim = CallNote.hasSim(ctx),
+                        findExisting = { n ->
+                            val nm = CallInfo.name(ctx, n)
+                            if (nm == null) null else NoteDup(if (locked) null else nm)
+                        },
+                        onSave = { name, num, gmail, sim ->
+                            scope.launch {
+                                result = withContext(Dispatchers.IO) { CallNote.save(ctx, name, num, gmail, sim) }
+                                sheet = 0
+                            }
+                        },
+                        onCopy = { num ->
+                            copy(ctx, num)
+                            CallNote.pending = null
+                            result = "Đã sao chép ${prettyNumber(num)}"
+                            sheet = 0
+                        },
+                        onClose = { unsaved ->
+                            // Gõ số rồi mà chưa lưu → gọi xong app nhắc lại
+                            if (unsaved.length >= 3) CallNote.pending = unsaved
+                            sheet = 0
+                        },
+                    )
+                } else if (sheet == 2) {
+                    InCallContactsSheet(
+                        callerName = callerName, timer = timer, contacts = contacts,
+                        onCopy = { num -> copy(ctx, num); result = "Đã sao chép ${prettyNumber(num)}" },
+                        onSms = { name, num ->
+                            runCatching {
+                                ctx.startActivity(
+                                    Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("smsto:" + number))
+                                        .putExtra("sms_body", "$name: $num").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                )
+                            }
+                        },
+                        onBack = { sheet = 0 },
+                    )
                 }
             }
-        },
-        onMute = { CallManager.setMuted(!CallManager.isMuted()) },
-        onSpeaker = { CallManager.setSpeaker(!CallManager.isSpeaker()) },
-        onHold = { if (st == Call.STATE_HOLDING) call.unhold() else call.hold() },
-        onDtmf = { k -> call.playDtmfTone(k); call.stopDtmfTone() },
-        onAddPerson = {
-            // Mở bàn phím của app để gọi thêm (cuộc hiện tại tự giữ máy)
-            runCatching {
-                ctx.startActivity(Intent(Intent.ACTION_DIAL).setClass(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            }
-        },
-        onContacts = {
-            runCatching { ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-        },
-        onHangup = { CallManager.hangup(call) },
-    )
+        }
+    }
+}
+
+/** Máy đang ở màn hình khóa? */
+private fun isLocked(ctx: android.content.Context): Boolean =
+    ctx.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+
+/** Chạy [action] ngay nếu máy đã mở khóa; nếu đang khóa thì hỏi vân tay / mật khẩu trước. */
+private fun withUnlock(ctx: android.content.Context, action: () -> Unit) {
+    val km = ctx.getSystemService(android.app.KeyguardManager::class.java)
+    val act = ctx as? android.app.Activity
+    if (km == null || !km.isKeyguardLocked || act == null) {
+        action(); return
+    }
+    km.requestDismissKeyguard(act, object : android.app.KeyguardManager.KeyguardDismissCallback() {
+        override fun onDismissSucceeded() = action()
+    })
+}
+
+private fun copy(ctx: android.content.Context, text: String) {
+    val cm = ctx.getSystemService(android.content.ClipboardManager::class.java)
+    cm?.setPrimaryClip(android.content.ClipData.newPlainText("Số điện thoại", text))
 }
 
 // ───────────────────────── Gọi nhóm ─────────────────────────
@@ -235,6 +366,7 @@ private fun OngoingScreen(call: Call, other: Call?) {
 /** Màn gọi nhóm: danh sách người + trạng thái, app tự gọi lần lượt và tự gộp. */
 @Composable
 private fun GroupCallScreen(call: Call) {
+    CallManager.tick // đọc để vẽ lại khi trạng thái cuộc gọi đổi
     val ctx = LocalContext.current
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1000) } }

@@ -104,12 +104,6 @@ fun CallScreenSettings(onBack: () -> Unit) {
                     "Zalo, Messenger gọi vẫn dùng màn hình riêng của chúng",
                 )) Text("• $l", color = C.Sub2, fontSize = 13.5.sp)
             }
-            CardBox(bg = C.Orange.copy(alpha = 0.12f)) {
-                Text(
-                    "Tính năng mới: nên dùng thử trên máy của bạn vài ngày trước khi bật cho người nhà. Gặp trục trặc thì chọn lại \"Của điện thoại\".",
-                    color = C.Text, fontSize = 13.sp
-                )
-            }
         }
     }
 }

@@ -56,6 +56,8 @@ class DbsInCallService : InCallService() {
         CallManager.calls.remove(call)
         if (CallManager.speakerOnAnswer == call) CallManager.speakerOnAnswer = null
         GroupCall.onCallRemoved(call)
+        // Gọi xong mà còn số ghi chưa lưu → nhắc
+        if (CallManager.calls.isEmpty()) CallNote.remindIfPending(this)
         CallManager.changed()
         CallNotifier.update(this)
     }

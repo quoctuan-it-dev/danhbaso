@@ -40,7 +40,7 @@ private fun PreviewOngoing() = CallPreviewFrame {
     OngoingContent(
         saved = "Mẹ Kiều", number = "0917600108", status = "02:15", active = true, held = false,
         muted = false, speaker = true, otherBar = null,
-        onMute = {}, onSpeaker = {}, onHold = {}, onDtmf = {}, onAddPerson = {}, onContacts = {}, onHangup = {},
+        onMute = {}, onSpeaker = {}, onHold = {}, onDtmf = {}, onAddPerson = {}, onNote = {}, onContacts = {}, onHangup = {},
     )
 }
 
@@ -66,3 +66,21 @@ private fun PreviewGroupTalking() = CallPreviewFrame {
     GroupCallContent("Gia đình", m, "01:24", false, true, {}, {}, {}, {}, {}, {})
 }
 
+@androidx.compose.ui.tooling.preview.Preview(name = "Ghi số khi đang gọi", widthDp = 360, heightDp = 780)
+@Composable
+private fun PreviewNote() = CallPreviewFrame {
+    NoteSheet(
+        callerName = "Ông Ngoại", timer = "01:40", locked = false, hasSim = true,
+        findExisting = { null }, onSave = { _, _, _, _ -> }, onCopy = {}, onClose = {},
+    )
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Danh bạ trong màn gọi", widthDp = 360, heightDp = 780)
+@Composable
+private fun PreviewInCallContacts() = CallPreviewFrame {
+    InCallContactsSheet(
+        callerName = "Ông Ngoại", timer = "03:10",
+        contacts = listOf("Chú Năm sửa điện" to "0909123456", "Mẹ Kiều" to "0917600108", "Ba" to "0903111222"),
+        onCopy = {}, onSms = { _, _ -> }, onBack = {},
+    )
+}

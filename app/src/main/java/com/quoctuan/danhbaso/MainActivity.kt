@@ -3,6 +3,7 @@ package com.quoctuan.danhbaso
 import android.Manifest
 import android.content.pm.PackageManager
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -126,6 +127,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) DialRequest.from(intent)
+        // Che trắng nội dung app khi xem danh sách app đang mở (vẫn chụp màn hình được bình thường)
+        if (Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(false)
         enableEdgeToEdge()
         val data = AppData(applicationContext)
         setContent {
@@ -409,15 +412,18 @@ private fun AppDrawer(data: AppData, onKeypadSize: () -> Unit, onTheme: () -> Un
                     else -> "● An toàn" to C.Green
                 }
                 DrawerRow(Icons.Filled.VerifiedUser, Color(0xFF1FB57A), "Bảo mật", secText, secColor) { onPick(Route.Security) }
-                DrawerRow(Icons.Filled.PhoneInTalk, Color(0xFF1FB5E8), "Màn hình gọi", if (isAppCall) "Danh bạ số" else "Điện thoại") { onPick(Route.CallScreen) }
+                DrawerRow(
+                    Icons.Filled.PhoneInTalk, Color(0xFF1FB5E8), "Màn hình gọi", if (isAppCall) "Danh bạ số" else "Điện thoại",
+                    chip = if (isAppCall) ChipStyle.NAVY_GLOW else ChipStyle.GREEN_GLOW
+                ) { onPick(Route.CallScreen) }
             }
             DrawerSection("Giao diện") {
-                DrawerRow(Icons.Filled.Dialpad, Color(0xFF7A879C), "Cỡ bàn phím", listOf("Nhỏ", "Vừa", "Lớn")[data.keypadSize], onClick = onKeypadSize)
-                DrawerRow(Icons.Filled.FormatSize, Color(0xFF7A879C), "Cỡ chữ", com.quoctuan.danhbaso.data.FONT_NAMES[data.fontSize], onClick = onFont)
+                DrawerRow(Icons.Filled.Dialpad, Color(0xFF14B8C4), "Cỡ bàn phím", listOf("Nhỏ", "Vừa", "Lớn")[data.keypadSize], onClick = onKeypadSize)
+                DrawerRow(Icons.Filled.FormatSize, Color(0xFFFF8A3D), "Cỡ chữ", com.quoctuan.danhbaso.data.FONT_NAMES[data.fontSize], onClick = onFont)
                 DrawerRow(Icons.Filled.Palette, Color(0xFFE0569A), "Màu giao diện", com.quoctuan.danhbaso.ui.THEME_NAMES[data.theme], dot = C.Blue, onClick = onTheme)
             }
             DrawerSection("Ứng dụng") {
-                DrawerRow(Icons.Filled.Info, Color(0xFF7A879C), "Thông tin ứng dụng") { onPick(Route.Info) }
+                DrawerRow(Icons.Filled.Info, Color(0xFF5B6CFF), "Thông tin ứng dụng") { onPick(Route.Info) }
                 DrawerRow(Icons.Filled.Refresh, Color(0xFF2F86FF), "Cập nhật ứng dụng", "v${BuildConfig.VERSION_NAME}") { onPick(Route.Update) }
             }
             Spacer(Modifier.height(16.dp))
@@ -484,6 +490,9 @@ private fun DrawerSection(title: String, content: @Composable () -> Unit) {
     }
 }
 
+/** Kiểu nhãn giá trị bên phải dòng menu. */
+private enum class ChipStyle { PLAIN, NAVY_GLOW, GREEN_GLOW }
+
 /** Một dòng menu: ô biểu tượng màu · tên · nhãn giá trị · mũi tên. */
 @Composable
 private fun DrawerRow(
@@ -493,6 +502,7 @@ private fun DrawerRow(
     value: String? = null,
     valueColor: Color? = null,
     dot: Color? = null,
+    chip: ChipStyle = ChipStyle.PLAIN,
     onClick: () -> Unit,
 ) {
     Row(
@@ -506,16 +516,30 @@ private fun DrawerRow(
         Spacer(Modifier.width(12.dp))
         Text(title, color = C.Text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f))
         if (value != null) {
+            val shape = RoundedCornerShape(10.dp)
+            val chipMod = when (chip) {
+                // Màn hình gọi = Danh bạ số: nền xanh navy, viền phát sáng xanh
+                ChipStyle.NAVY_GLOW -> Modifier.glow(shape, 8.dp, Color(0xFF2F86FF))
+                    .clip(shape).background(Color(0xFF123C74)).border(1.2.dp, Color(0xFF5CC2FF), shape)
+                // Màn hình gọi = Điện thoại: viền phát sáng xanh lá
+                ChipStyle.GREEN_GLOW -> Modifier.glow(shape, 8.dp, Color(0xFF1FB57A))
+                    .clip(shape).background(Color(0xFF1FB57A).copy(alpha = 0.14f)).border(1.2.dp, Color(0xFF2FC46E), shape)
+                ChipStyle.PLAIN -> Modifier.clip(shape).background((valueColor ?: C.Sub2).copy(alpha = 0.12f))
+            }
+            val textColor = when (chip) {
+                ChipStyle.NAVY_GLOW -> Color.White
+                ChipStyle.GREEN_GLOW -> Color(0xFF1E9E5E)
+                ChipStyle.PLAIN -> valueColor ?: C.Sub2
+            }
             Row(
-                Modifier.clip(RoundedCornerShape(10.dp)).background((valueColor ?: C.Sub2).copy(alpha = 0.12f))
-                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                chipMod.padding(horizontal = 8.dp, vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (dot != null) {
                     Box(Modifier.size(9.dp).clip(CircleShape).background(dot))
                     Spacer(Modifier.width(4.dp))
                 }
-                Text(value, color = valueColor ?: C.Sub2, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                Text(value, color = textColor, fontSize = 11.5.sp, fontWeight = if (chip == ChipStyle.PLAIN) FontWeight.Medium else FontWeight.Bold, maxLines = 1)
             }
         }
         Text("›", color = C.Sub, fontSize = 18.sp, modifier = Modifier.padding(start = 6.dp))
@@ -589,15 +613,15 @@ private fun DrawerPreviewBody(mode: Int) {
             }
             DrawerSection("Bảo mật & cuộc gọi") {
                 DrawerRow(Icons.Filled.VerifiedUser, Color(0xFF1FB57A), "Bảo mật", "● An toàn", C.Green) {}
-                DrawerRow(Icons.Filled.PhoneInTalk, Color(0xFF1FB5E8), "Màn hình gọi", "Danh bạ số") {}
+                DrawerRow(Icons.Filled.PhoneInTalk, Color(0xFF1FB5E8), "Màn hình gọi", "Danh bạ số", chip = ChipStyle.NAVY_GLOW) {}
             }
             DrawerSection("Giao diện") {
-                DrawerRow(Icons.Filled.Dialpad, Color(0xFF7A879C), "Cỡ bàn phím", "Vừa") {}
-                DrawerRow(Icons.Filled.FormatSize, Color(0xFF7A879C), "Cỡ chữ", "Vừa") {}
+                DrawerRow(Icons.Filled.Dialpad, Color(0xFF14B8C4), "Cỡ bàn phím", "Vừa") {}
+                DrawerRow(Icons.Filled.FormatSize, Color(0xFFFF8A3D), "Cỡ chữ", "Vừa") {}
                 DrawerRow(Icons.Filled.Palette, Color(0xFFE0569A), "Màu giao diện", "Navy biển", dot = C.Blue) {}
             }
             DrawerSection("Ứng dụng") {
-                DrawerRow(Icons.Filled.Info, Color(0xFF7A879C), "Thông tin ứng dụng") {}
+                DrawerRow(Icons.Filled.Info, Color(0xFF5B6CFF), "Thông tin ứng dụng") {}
                 DrawerRow(Icons.Filled.Refresh, Color(0xFF2F86FF), "Cập nhật ứng dụng", "v1.4.3") {}
             }
         }
